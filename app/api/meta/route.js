@@ -1,3 +1,5 @@
+import { parseImageStream } from '@meta-sam/parser';
+import { cutOutWithMasks } from '../../../lib/segmentation.js';
 import { sampleBriefs } from '../../../lib/config.js';
 import { getClient, models, responseText, publicApiError, validateAction } from '../../../lib/meta-server.js';
 
@@ -56,8 +58,10 @@ export async function POST(request) {
       if(typeof image!=='string'||!image) return json({error:'Muse Image belum mengembalikan gambar. Desain sebelumnya tetap tersedia.'},502);
       return json({demo:false,image:'data:image/png;base64,'+image,title:'Desain AI kamu',model:models.image,durationMs:Date.now()-start,usage:result.usage||null});
     }
-    // SAM integration is added in Stage 3. Never invent a mask response.
-    return json({error:'Konektor segmentasi sedang disiapkan.'},501);
+    const events=await client.responses.create({model:models.sam, input:[{type:'message',role:'user',content:[{type:'input_text',text:body.subject.trim()},{type:'input_image',image_url:body.image}]}],stream:true,metadata:{mask_encoding:'one_bit'}});
+    const result=await parseImageStream(events).finalResult;
+    const output=await cutOutWithMasks(Buffer.from(body.image.split(',')[1],'base64'),result);
+    return json({demo:false,image:'data:image/png;base64,'+output.toString('base64'),model:models.sam,durationMs:Date.now()-start});
   } catch(e) {
     console.error('Meta request failed',{action:body.action,status:e.status||null,name:e.name});
     return json({error:publicApiError(e)},502);
