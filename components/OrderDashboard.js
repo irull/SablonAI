@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { formatRupiah as rp } from "../lib/config";
 import { downloadJSON, orderStatuses } from "../lib/orders";
+import { buildWhatsAppCustomerLink } from "../lib/whatsapp";
 
 // Label sablon di dashboard: pakai quote label dulu, karena itu sudah
 // termasuk ukuran cm dan, untuk order baru, orientasi (mis. "20×15 cm
@@ -238,6 +239,11 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
             </button>
             <div className="eyebrow">{selected.id}</div>
             <h2 id="order-title">{selected.customer}</h2>
+            {selected.phone && (
+              <p className="small-note">
+                WhatsApp pelanggan: {selected.phone}
+              </p>
+            )}
             <img src={selected.preview} alt="Mockup order tersimpan" />
             <p>
               {selected.product || "Kaos"} · {selected.size} ·{" "}
@@ -273,6 +279,16 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
               >
                 <ArrowDownToLine size={15} /> Detail lengkap
               </button>
+              {selected.phone && (
+                <a
+                  className="secondary"
+                  href={buildWhatsAppCustomerLink(selected)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Hubungi via WhatsApp
+                </a>
+              )}
             </div>
           </section>
         </div>

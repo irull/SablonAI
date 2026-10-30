@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildWhatsAppOrderLink } from "../lib/whatsapp.js";
+import {
+  buildWhatsAppOrderLink,
+  buildWhatsAppCustomerLink,
+  normalizePhoneId,
+  isValidPhoneId,
+} from "../lib/whatsapp.js";
 
 test("WhatsApp fast-track link carries the order summary to the shop number", () => {
   const link = buildWhatsAppOrderLink({
@@ -35,4 +40,28 @@ test("WhatsApp link stays valid for a minimal one-sided order", () => {
   const text = decodeURIComponent(link.split("?text=")[1]);
   assert.match(text, /Sablon belakang: tanpa sablon/);
   assert.match(text, /Jumlah: 1 pcs/);
+});
+
+test("Phone numbers normalize to Indonesian international format", () => {
+  assert.equal(normalizePhoneId("0812-9000-0520"), "6281290000520");
+  assert.equal(normalizePhoneId("+62 812 9000 0520"), "6281290000520");
+  assert.equal(normalizePhoneId("81290000520"), "6281290000520");
+  assert.ok(isValidPhoneId("081290000520"));
+  assert.ok(!isValidPhoneId("123"));
+  assert.ok(!isValidPhoneId(""));
+});
+
+test("Admin customer link targets the customer number with order status", () => {
+  const link = buildWhatsAppCustomerLink({
+    id: "SA-TEST3",
+    customer: "Pelanggan Demo",
+    phone: "081290000520",
+    status: "Produksi",
+    quote: { total: 110000 },
+  });
+  assert.ok(link.startsWith("https://wa.me/6281290000520?text="));
+  const text = decodeURIComponent(link.split("?text=")[1]);
+  assert.match(text, /SA-TEST3/);
+  assert.match(text, /Produksi/);
+  assert.match(text, /110\.000/);
 });

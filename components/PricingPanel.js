@@ -9,7 +9,11 @@ import {
 } from "../lib/pricing";
 import OptionGroup from "./ui/OptionGroup";
 import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
-import { buildWhatsAppOrderLink } from "../lib/whatsapp";
+import {
+  buildWhatsAppOrderLink,
+  isValidPhoneId,
+  normalizePhoneId,
+} from "../lib/whatsapp";
 
 const MASKING_IMAGES = {
   "10x10": "/assets/masking/sablon-10x10.jpg",
@@ -109,6 +113,7 @@ export default function PricingPanel({
     [error, setError] = useState(""),
     [success, setSuccess] = useState("");
   const [lastOrder, setLastOrder] = useState(null);
+  const [phone, setPhone] = useState("");
   const product = getProduct(productId);
   const productPriceForSize = (s) => {
     try {
@@ -138,6 +143,10 @@ export default function PricingPanel({
       setError("Isi nama pelanggan, minimal 2 karakter.");
       return;
     }
+    if (!isValidPhoneId(phone)) {
+      setError("Isi nomor WhatsApp yang valid, contoh 081234567890.");
+      return;
+    }
     setSaving(true);
     try {
       const order = await onOrder({
@@ -150,6 +159,7 @@ export default function PricingPanel({
         backOrientation,
         quantity,
         customer: customer.trim(),
+        phone: normalizePhoneId(phone),
         quote,
       });
       setSuccess("Order " + order.id + " tersimpan di browser ini.");
@@ -371,6 +381,22 @@ export default function PricingPanel({
           required
           minLength={2}
           autoComplete="off"
+        />
+        <label className="field-label" htmlFor="phone">
+          Nomor WhatsApp
+        </label>
+        <input
+          id="phone"
+          value={phone}
+          onChange={(e) => {
+            setPhone(e.target.value);
+            setSuccess("");
+          }}
+          maxLength={17}
+          placeholder="08xxxxxxxxxx"
+          required
+          inputMode="tel"
+          autoComplete="tel"
         />
         <button className="primary full-width" disabled={saving} type="submit">
           {saving ? (
