@@ -9,6 +9,7 @@ import {
   Languages,
   Layers3,
   Moon,
+  PackageSearch,
   Shirt,
   SlidersHorizontal,
   Sparkles,
@@ -23,6 +24,7 @@ import { orientedDimensions } from "../lib/pricing";
 import ColourGroup from "./ui/ColourGroup";
 import OrderDashboard from "./OrderDashboard";
 import CatalogPanel from "./CatalogPanel";
+import TrackingPanel from "./TrackingPanel";
 import {
   artworkDataURL,
   readOrders,
@@ -36,6 +38,7 @@ const tabs = [
   { id: "ai", labelKey: "tabAi", icon: Sparkles },
   { id: "editor", labelKey: "tabEditor", icon: SlidersHorizontal },
   { id: "katalog", labelKey: "tabCatalog", icon: Shirt },
+  { id: "lacak", labelKey: "tabTrack", icon: PackageSearch },
   { id: "dashboard", labelKey: "tabDashboard", icon: ClipboardList },
 ];
 export default function SablonApp() {
@@ -301,7 +304,7 @@ export default function SablonApp() {
               <span /> {tr("savedWorkspace")}
             </span>
           </div>
-          <div className="studio-grid" hidden={tab === "dashboard" || tab === "katalog"}>
+          <div className="studio-grid" hidden={tab === "dashboard" || tab === "katalog" || tab === "lacak"}>
             <div className="design-tools">
               <div hidden={tab !== "ai"}>
                 <GeneratePanel
@@ -400,6 +403,9 @@ export default function SablonApp() {
               onDashboard={() => setTab("dashboard")}
             />
           </div>
+          {tab === "lacak" && (
+            <TrackingPanel orders={orders} t={tr} lang={lang} />
+          )}
           {tab === "katalog" && (
             <CatalogPanel onSave={saveExternalOrder} t={tr} />
           )}
@@ -413,7 +419,7 @@ export default function SablonApp() {
               error={storageError}
             />
           )}
-          <section className="gallery-section" hidden={tab === "dashboard" || tab === "katalog"}>
+          <section className="gallery-section" hidden={tab === "dashboard" || tab === "katalog" || tab === "lacak"}>
             <div className="gallery-title">
               <div>
                 <h2>{tr("galleryTitle")}</h2>

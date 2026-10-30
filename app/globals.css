@@ -2103,3 +2103,41 @@ th { background: #f2f5fd; }
 :root[data-theme="dark"] .product-art { background: linear-gradient(135deg, #1b2150, #232a5e); }
 :root[data-theme="dark"] .product-art.art-1 { background: linear-gradient(135deg, #2a1b4d, #33205e); }
 :root[data-theme="dark"] .product-art.art-2 { background: linear-gradient(135deg, #1e2450, #1b2150); }
+
+/* === Stage 4 irisan B: lacak order pelanggan === */
+.tracking-section { margin-top: 26px; }
+.tracking-form { margin-top: 16px; padding: 20px; display: grid; gap: 14px; max-width: 560px; }
+.tracking-result { margin-top: 16px; padding: 20px; display: grid; gap: 14px; max-width: 760px; }
+.tracking-head { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.tracking-head strong { font-family: Manrope, sans-serif; font-size: 16px; display: block; }
+.tracking-head span { color: var(--muted); font-size: 13px; }
+.tracking-total { text-align: right; }
+.tracking-total span { display: block; }
+.tracking-total strong { color: var(--olive); font-size: 18px; }
+.track-steps { list-style: none; display: flex; gap: 0; margin: 4px 0 0; padding: 0; }
+.track-step {
+  flex: 1; display: grid; justify-items: center; gap: 7px; text-align: center;
+  position: relative; color: var(--muted);
+}
+.track-step:before {
+  content: ""; position: absolute; top: 15px; left: -50%; width: 100%;
+  height: 3px; background: var(--line); border-radius: 99px;
+}
+.track-step:first-child:before { display: none; }
+.track-step.done:before, .track-step.current:before { background: var(--olive); }
+.track-dot {
+  width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--paper); border: 2px solid var(--line); color: var(--muted);
+  font: 800 12.5px Manrope, sans-serif; position: relative; z-index: 1;
+}
+.track-step.done .track-dot { background: var(--olive); border-color: var(--olive); color: #fff; }
+.track-step.current .track-dot {
+  border-color: var(--olive); color: var(--olive);
+  box-shadow: 0 0 0 5px var(--soft);
+}
+.track-label { font-size: 12px; font-weight: 650; }
+.track-step.current .track-label { color: var(--ink); font-weight: 800; }
+.track-step.done .track-label { color: var(--ink); }
+@media (max-width: 560px) {
+  .track-label { font-size: 10.5px; }
+}
