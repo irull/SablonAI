@@ -258,7 +258,10 @@ export default function SablonApp() {
           <section className="page-heading">
             <div>
               <div className="eyebrow">{tr("heroEyebrow")}</div>
-              <h1>{tr("heroTitle")}</h1>
+              <h1>
+                {tr("heroTitle")}{" "}
+                <em className="hero-accent">{tr("heroTitleAccent")}</em>
+              </h1>
               <p>{tr("heroSub")}</p>
             </div>
             <div className="studio-tag">

@@ -19,7 +19,11 @@ module.exports = {
         olive: "var(--olive)",
         "olive-dark": "var(--olive-dark)",
         soft: "var(--soft)",
-        focus: "#b17a41",
+        navy: "var(--navy)",
+        "accent-mid": "var(--accent-mid)",
+        pale: "var(--accent-pale)",
+        violet: "var(--violet)",
+        focus: "#3442CA",
       },
       fontFamily: {
         sans: ['"DM Sans"', "Arial", "sans-serif"],

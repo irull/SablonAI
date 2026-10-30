@@ -67,7 +67,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
   const [text, setText] = useState(tr("edDefaultText")),
-    [textColor, setTextColor] = useState("#284f3f"),
+    [textColor, setTextColor] = useState("#101460"),
     [subject, setSubject] = useState("logo");
   onChangeRef.current = onChange;
   const emit = useCallback(() => {
@@ -134,8 +134,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           top: 360,
           scaleX: scale,
           scaleY: scale,
-          cornerColor: "#526a3e",
-          borderColor: "#526a3e",
+          cornerColor: "#3442CA",
+          borderColor: "#3442CA",
           transparentCorners: false,
         });
         canvas.current.add(img);

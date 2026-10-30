@@ -1950,3 +1950,125 @@ td small {
 :root[data-theme="dark"] .size-chart-img { border-color: var(--line); }
 :root[data-theme="dark"] .pref-button { color: #aebba0; }
 
+
+/* === Redesign 2026-10-31 — bahasa desain referensi Ronas IT (Dribbble shot 27732101):
+   biru primer #3442CA di atas putih keabu #F8FAFD, navy #101460, violet #975FF2,
+   kartu pilihan ala kuis (border + tint + centang), radius lega, bayangan lembut. === */
+:root {
+  --bg: #f8fafd;
+  --paper: #ffffff;
+  --ink: #171a33;
+  --muted: #6e7590;
+  --line: #e3e8f4;
+  --olive: #3442ca;
+  --olive-dark: #27339e;
+  --soft: #edf1fe;
+  --navy: #101460;
+  --accent-mid: #6d90f1;
+  --accent-pale: #a9c6f7;
+  --violet: #975ff2;
+}
+:root[data-theme="dark"] {
+  --bg: #0a0d1f;
+  --paper: #141834;
+  --ink: #edf0ff;
+  --muted: #9aa3c7;
+  --line: #272d57;
+  --olive: #6d90f1;
+  --olive-dark: #a9c6f7;
+  --soft: #1e2450;
+  --navy: #070833;
+  --violet: #b18cff;
+}
+::selection { background: var(--accent-pale); }
+button:focus-visible, a:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible { outline-color: var(--olive); }
+
+.eyebrow { letter-spacing: 2.2px; font-size: 11px; font-weight: 800; }
+.page-heading h1 {
+  font-size: clamp(32px, 4.2vw, 44px); font-weight: 800;
+  letter-spacing: -1.2px; line-height: 1.05; color: var(--navy);
+}
+.page-heading p { font-size: 15.5px; }
+.hero-accent { font-style: italic; color: var(--olive); }
+h2 { letter-spacing: -0.5px; }
+
+.card {
+  border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(16, 20, 96, 0.07);
+}
+
+/* Rail navy gelap ala nav referensi */
+.rail { background: #0b0d24; border-right: 0; }
+.rail-item { color: #8e97c4; border-radius: 14px; }
+.rail-item:hover { background: #1b2050; color: #fff; }
+.rail-item.active { background: var(--olive); color: #fff; }
+.rail-help { color: #8e97c4; }
+.rail-help:hover { background: #1b2050; color: #fff; }
+.avatar { background: #232858; color: #c6cdf2; }
+.logo-mark { background: linear-gradient(135deg, #3442ca, #975ff2); border-radius: 14px; }
+.pref-button { background: transparent; border-color: #2a3060; color: #c6cdf2; }
+.pref-button:hover { border-color: var(--accent-mid); color: #fff; }
+
+.topbar { background: rgba(248, 250, 253, 0.82); }
+.wordmark i { background: var(--violet); }
+.tab { border-radius: 999px; padding: 9px 16px; }
+.tab:hover { color: var(--ink); background: var(--soft); }
+.tab.active { background: var(--navy); color: #fff; }
+.tab.active:after { display: none; }
+
+.primary { border-radius: 10px; font-weight: 700; box-shadow: 0 8px 20px rgba(52, 66, 202, 0.25); }
+.secondary { border-radius: 10px; background: var(--soft); color: var(--olive); font-weight: 650; }
+.secondary:hover { background: var(--accent-pale); color: var(--navy); }
+.text-button { color: var(--olive); }
+.field-label { font-family: Manrope, sans-serif; font-weight: 800; font-size: 13px; color: var(--ink); }
+
+.prompt-box { border-radius: 12px; background: #fbfcff; }
+.order-form > input, .dashboard select { border-radius: 12px; }
+.upload-zone { border-radius: 16px; background: #fbfcff; }
+.editor-canvas-shell { border-radius: 16px; }
+.live-dot { background: var(--olive); }
+.demo-badge { background: var(--soft); color: var(--olive-dark); border-radius: 999px; }
+.ai-orb { background: var(--soft); color: var(--olive); }
+.assistant-note { background: var(--soft); }
+.inspiration-icon { background: var(--soft); color: var(--olive); }
+.inspiration-1 .inspiration-icon { background: #f0eafb; color: var(--violet); }
+.inspiration-2 .inspiration-icon { background: #e3ebfe; color: var(--accent-mid); }
+.icon-tile { background: var(--soft); color: var(--olive); border-radius: 12px; }
+.icon-tile.neutral { background: #f3efff; color: var(--violet); }
+.swatch.active { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--olive); }
+.print-measure span { background: var(--accent-pale); }
+
+.mockup-stage { background: linear-gradient(165deg, #e3ebfe 0%, #efe9fd 100%); border-radius: 18px; }
+.view-label { background: #fff; color: var(--navy); border-radius: 999px; font-weight: 800; letter-spacing: 1.6px; box-shadow: 0 4px 14px rgba(16, 20, 96, 0.12); }
+
+.gallery-card { border-radius: 18px; }
+.gallery-art { background: #e7edfd; }
+.gallery-1 .gallery-art { background: #f0eafb; }
+.gallery-2 .gallery-art { background: #e3ebfe; }
+
+/* Kotak harga jadi kartu ringkasan navy seperti layar hasil referensi */
+.pricing-box { background: var(--navy); color: #edf0ff; border-radius: 16px; }
+.pricing-box .eyebrow { color: var(--accent-pale); }
+.price { color: #fff; }
+.price-caption { color: var(--accent-pale); }
+.price-breakdown { color: #b9c4f2; }
+.price-breakdown dd { color: #fff; }
+
+.notice { background: var(--soft); color: var(--olive-dark); }
+.success-note { background: var(--soft); color: var(--olive-dark); }
+.modal { border-radius: 20px; }
+.breadcrumb strong { color: var(--navy); }
+.dashboard-stats strong { color: var(--navy); }
+th { background: #f2f5fd; }
+
+:root[data-theme="dark"] .topbar { background: rgba(10, 13, 31, 0.82); }
+:root[data-theme="dark"] .page-heading h1 { color: var(--ink); }
+:root[data-theme="dark"] .tab.active { background: var(--olive); color: #fff; }
+:root[data-theme="dark"] .prompt-box, :root[data-theme="dark"] .upload-zone { background: #10142e; }
+:root[data-theme="dark"] .mockup-stage { background: linear-gradient(165deg, #1b2150, #2a1b4d); }
+:root[data-theme="dark"] .view-label { background: var(--paper); color: var(--ink); }
+:root[data-theme="dark"] .pricing-box { background: #0a0c2e; border: 1px solid var(--line); }
+:root[data-theme="dark"] .breadcrumb strong { color: var(--ink); }
+:root[data-theme="dark"] .dashboard-stats strong { color: var(--accent-pale); }
+:root[data-theme="dark"] th { background: #1e2450; }
