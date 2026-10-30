@@ -8,6 +8,83 @@ import {
   productPrice,
 } from "../lib/pricing";
 import OptionGroup from "./ui/OptionGroup";
+import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
+
+const MASKING_IMAGES = {
+  "10x10": "/assets/masking/sablon-10x10.jpg",
+  A5: "/assets/masking/sablon-A5-14x21.jpg",
+  A4: "/assets/masking/sablon-A4-21x28.jpg",
+  A3: "/assets/masking/sablon-A3-28x42.jpg",
+};
+
+function MaskingFigure({ print, sideLabel, usedLabel }) {
+  const src = MASKING_IMAGES[print.id];
+  if (!src) return null;
+  return (
+    <figure className="masking-figure">
+      <img
+        src={src}
+        alt={"Contoh posisi sablon " + sideLabel + " ukuran " + print.label}
+        loading="lazy"
+      />
+      <figcaption>
+        Contoh posisi sablon {sideLabel}: {print.position}. Ukuran yang
+        dijual {usedLabel} — tulisan ukuran pada gambar hanya contoh
+        posisi, bukan patokan.
+      </figcaption>
+    </figure>
+  );
+}
+
+function SizeChart({ productId }) {
+  const chart =
+    productId === "kaos-anak"
+      ? config.sizeCharts.anak
+      : productId === "kaos-pendek" || productId === "kaos-panjang"
+        ? config.sizeCharts.dewasa
+        : null;
+  if (!chart) return null;
+  const img =
+    productId === "kaos-anak"
+      ? "/assets/size-chart/kaos-anak.jpg"
+      : "/assets/size-chart/kaos-dewasa.jpg";
+  return (
+    <Disclosure>
+      <DisclosureButton className="text-button size-chart-toggle">
+        Lihat tabel ukuran
+      </DisclosureButton>
+      <DisclosurePanel>
+        <table className="size-chart-table">
+          <thead>
+            <tr>
+              <th>Ukuran</th>
+              <th>Lebar (cm)</th>
+              <th>Panjang (cm)</th>
+              <th>Lengan (cm)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chart.rows.map((r) => (
+              <tr key={r.size}>
+                <td>{r.size}</td>
+                <td>{r.lebar}</td>
+                <td>{r.panjang}</td>
+                <td>{r.lengan ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="small-note">{chart.note}</p>
+        <img
+          className="size-chart-img"
+          src={img}
+          alt="Gambar tabel ukuran kaos dari toko"
+          loading="lazy"
+        />
+      </DisclosurePanel>
+    </Disclosure>
+  );
+}
 
 export default function PricingPanel({
   productId,
@@ -118,6 +195,7 @@ export default function PricingPanel({
               : `${s} — ${rp(productPriceForSize(s))}`,
         }))}
       />
+      <SizeChart productId={productId} />
       <OptionGroup
         label="3 · Sablon depan"
         value={frontPrintId}
@@ -163,6 +241,13 @@ export default function PricingPanel({
         Dipakai di mockup: {quote.frontPrintLabel} — {rp(quote.front)}.
         Harga tidak berubah antara potret dan lanskap.
       </p>
+      {frontPrint && (
+        <MaskingFigure
+          print={frontPrint}
+          sideLabel="depan"
+          usedLabel={quote.frontPrintLabel}
+        />
+      )}
       <OptionGroup
         label="4 · Sablon belakang"
         value={backPrintId}
@@ -207,6 +292,13 @@ export default function PricingPanel({
         <p className="small-note">
           Untuk belakang: {quote.backPrintLabel} — {rp(quote.back)}.
         </p>
+      )}
+      {backPrint && (
+        <MaskingFigure
+          print={backPrint}
+          sideLabel="belakang"
+          usedLabel={quote.backPrintLabel}
+        />
       )}
       <div className="quantity-field">
         <label htmlFor="quantity" className="field-label">
