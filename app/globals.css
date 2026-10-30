@@ -2072,3 +2072,34 @@ th { background: #f2f5fd; }
 :root[data-theme="dark"] .breadcrumb strong { color: var(--ink); }
 :root[data-theme="dark"] .dashboard-stats strong { color: var(--accent-pale); }
 :root[data-theme="dark"] th { background: #1e2450; }
+
+/* === Stage 4 irisan A: katalog produk siap pakai === */
+.catalog-section { margin-top: 26px; }
+.catalog-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px; margin-top: 16px;
+}
+.product-card {
+  background: var(--paper); border: 1px solid var(--line); border-radius: 18px;
+  padding: 14px; display: grid; gap: 8px;
+  box-shadow: 0 12px 32px rgba(16, 20, 96, 0.05);
+}
+.product-card.selected { border-color: var(--olive); box-shadow: 0 12px 32px rgba(52, 66, 202, 0.16); }
+.product-card strong { font-family: Manrope, sans-serif; font-size: 15.5px; }
+.product-art {
+  height: 96px; border-radius: 12px; display: grid; place-items: center;
+  background: linear-gradient(135deg, #e3ebfe, #edf1fe); color: var(--olive);
+}
+.product-art.art-1 { background: linear-gradient(135deg, #f0eafb, #efe9fd); color: var(--violet); }
+.product-art.art-2 { background: linear-gradient(135deg, #e7edfd, #e3ebfe); color: var(--accent-mid); }
+.product-meta { color: var(--muted); font-size: 12.5px; }
+.catalog-form { margin-top: 16px; padding: 20px; display: grid; gap: 14px; }
+.catalog-form h3 { font-family: Manrope, sans-serif; font-size: 17px; }
+.catalog-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: Manrope, sans-serif; border-top: 1px dashed var(--line); padding-top: 12px;
+}
+.catalog-total strong { font-size: 20px; color: var(--olive); }
+:root[data-theme="dark"] .product-art { background: linear-gradient(135deg, #1b2150, #232a5e); }
+:root[data-theme="dark"] .product-art.art-1 { background: linear-gradient(135deg, #2a1b4d, #33205e); }
+:root[data-theme="dark"] .product-art.art-2 { background: linear-gradient(135deg, #1e2450, #1b2150); }

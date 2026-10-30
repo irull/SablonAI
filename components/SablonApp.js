@@ -22,6 +22,7 @@ import PricingPanel from "./PricingPanel";
 import { orientedDimensions } from "../lib/pricing";
 import ColourGroup from "./ui/ColourGroup";
 import OrderDashboard from "./OrderDashboard";
+import CatalogPanel from "./CatalogPanel";
 import {
   artworkDataURL,
   readOrders,
@@ -34,6 +35,7 @@ import { config, sampleBriefs } from "../lib/config";
 const tabs = [
   { id: "ai", labelKey: "tabAi", icon: Sparkles },
   { id: "editor", labelKey: "tabEditor", icon: SlidersHorizontal },
+  { id: "katalog", labelKey: "tabCatalog", icon: Shirt },
   { id: "dashboard", labelKey: "tabDashboard", icon: ClipboardList },
 ];
 export default function SablonApp() {
@@ -180,6 +182,13 @@ export default function SablonApp() {
     setOrders(next);
     return order;
   }
+  async function saveExternalOrder(order) {
+    if (storageError) throw new Error(storageError);
+    const next = [order, ...readOrders(localStorage)];
+    writeOrders(localStorage, next);
+    setOrders(next);
+    return order;
+  }
   async function changeStatus(id, status) {
     if (!orderStatuses.includes(status)) throw new Error("Status tidak valid.");
     const next = readOrders(localStorage).map((o) =>
@@ -292,7 +301,7 @@ export default function SablonApp() {
               <span /> {tr("savedWorkspace")}
             </span>
           </div>
-          <div className="studio-grid" hidden={tab === "dashboard"}>
+          <div className="studio-grid" hidden={tab === "dashboard" || tab === "katalog"}>
             <div className="design-tools">
               <div hidden={tab !== "ai"}>
                 <GeneratePanel
@@ -391,6 +400,9 @@ export default function SablonApp() {
               onDashboard={() => setTab("dashboard")}
             />
           </div>
+          {tab === "katalog" && (
+            <CatalogPanel onSave={saveExternalOrder} t={tr} />
+          )}
           {tab === "dashboard" && (
             <OrderDashboard
               t={tr}
@@ -401,7 +413,7 @@ export default function SablonApp() {
               error={storageError}
             />
           )}
-          <section className="gallery-section" hidden={tab === "dashboard"}>
+          <section className="gallery-section" hidden={tab === "dashboard" || tab === "katalog"}>
             <div className="gallery-title">
               <div>
                 <h2>{tr("galleryTitle")}</h2>

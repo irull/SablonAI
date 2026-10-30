@@ -168,10 +168,12 @@ export default function OrderDashboard({ orders, onStatus, onNew, error, t, lang
                   <tr key={o.id}>
                     <td>
                       <div className="order-person">
-                        <img
-                          src={o.preview}
-                          alt={tr("orderPersonAlt") + o.customer}
-                        />
+                        {o.preview ? (
+                          <img
+                            src={o.preview}
+                            alt={tr("orderPersonAlt") + o.customer}
+                          />
+                        ) : null}
                         <div>
                           <strong>{o.customer}</strong>
                           <small>
@@ -248,7 +250,9 @@ export default function OrderDashboard({ orders, onStatus, onNew, error, t, lang
                 {selected.phone}
               </p>
             )}
-            <img src={selected.preview} alt={tr("mockupAlt")} />
+            {selected.preview ? (
+              <img src={selected.preview} alt={tr("mockupAlt")} />
+            ) : null}
             <p>
               {selected.product || "Kaos"} · {selected.size} ·{" "}
               {selected.color.name} · {selected.quantity} pcs ·{" "}
@@ -263,7 +267,11 @@ export default function OrderDashboard({ orders, onStatus, onNew, error, t, lang
                 ? tr("artworkDemoLabel")
                 : tr("artworkMetaLabel")}{" "}
               ·{" "}
-              {selected.source === "editor" ? tr("srcEditor") : tr("srcGenerate")}
+              {selected.source === "editor"
+                ? tr("srcEditor")
+                : selected.source === "katalog"
+                  ? tr("srcCatalog")
+                  : tr("srcGenerate")}
               {tr("detailNoteSuffix")}
             </p>
             <div className="detail-actions">
