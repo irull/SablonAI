@@ -9,6 +9,7 @@ import {
 } from "../lib/pricing";
 import OptionGroup from "./ui/OptionGroup";
 import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
+import { translate } from "../lib/i18n";
 import {
   buildWhatsAppOrderLink,
   isValidPhoneId,
@@ -22,26 +23,29 @@ const MASKING_IMAGES = {
   A3: "/assets/masking/sablon-A3-28x42.jpg",
 };
 
-function MaskingFigure({ print, sideLabel, usedLabel }) {
+function MaskingFigure({ print, side, usedLabel, tr }) {
   const src = MASKING_IMAGES[print.id];
   if (!src) return null;
+  const sideText = tr(side === "front" ? "sideFront" : "sideBack");
   return (
     <figure className="masking-figure">
       <img
         src={src}
-        alt={"Contoh posisi sablon " + sideLabel + " ukuran " + print.label}
+        alt={tr("maskingAlt", { side: sideText, label: print.label })}
         loading="lazy"
       />
       <figcaption>
-        Contoh posisi sablon {sideLabel}: {print.position}. Ukuran yang
-        dijual {usedLabel} — tulisan ukuran pada gambar hanya contoh
-        posisi, bukan patokan.
+        {tr("maskingCaption", {
+          side: sideText,
+          position: print.position,
+          used: usedLabel,
+        })}
       </figcaption>
     </figure>
   );
 }
 
-function SizeChart({ productId }) {
+function SizeChart({ productId, tr }) {
   const chart =
     productId === "kaos-anak"
       ? config.sizeCharts.anak
@@ -56,16 +60,16 @@ function SizeChart({ productId }) {
   return (
     <Disclosure>
       <DisclosureButton className="text-button size-chart-toggle">
-        Lihat tabel ukuran
+        {tr("sizeChartToggle")}
       </DisclosureButton>
       <DisclosurePanel>
         <table className="size-chart-table">
           <thead>
             <tr>
-              <th>Ukuran</th>
-              <th>Lebar (cm)</th>
-              <th>Panjang (cm)</th>
-              <th>Lengan (cm)</th>
+              <th>{tr("chartSize")}</th>
+              <th>{tr("chartWidth")}</th>
+              <th>{tr("chartLength")}</th>
+              <th>{tr("chartSleeve")}</th>
             </tr>
           </thead>
           <tbody>
@@ -83,7 +87,7 @@ function SizeChart({ productId }) {
         <img
           className="size-chart-img"
           src={img}
-          alt="Gambar tabel ukuran kaos dari toko"
+          alt={tr("chartImgAlt")}
           loading="lazy"
         />
       </DisclosurePanel>
@@ -106,7 +110,9 @@ export default function PricingPanel({
   onBackOrientation,
   onOrder,
   onDashboard,
+  t,
 }) {
+  const tr = t || ((key, vars) => translate("id", key, vars));
   const [quantity, setQuantity] = useState(1),
     [customer, setCustomer] = useState(""),
     [saving, setSaving] = useState(false),
@@ -140,11 +146,11 @@ export default function PricingPanel({
     setError("");
     setSuccess("");
     if (customer.trim().length < 2) {
-      setError("Isi nama pelanggan, minimal 2 karakter.");
+      setError(tr("errName"));
       return;
     }
     if (!isValidPhoneId(phone)) {
-      setError("Isi nomor WhatsApp yang valid, contoh 081234567890.");
+      setError(tr("errPhone"));
       return;
     }
     setSaving(true);
@@ -162,7 +168,7 @@ export default function PricingPanel({
         phone: normalizePhoneId(phone),
         quote,
       });
-      setSuccess("Order " + order.id + " tersimpan di browser ini.");
+      setSuccess(tr("successSaved", { id: order.id }));
       setLastOrder(order);
     } catch (e) {
       setError(e.message);
@@ -177,12 +183,12 @@ export default function PricingPanel({
           <Shirt size={19} />
         </span>
         <div>
-          <h2>Detail kaos</h2>
-          <p>Pas di badan, pas di kantong.</p>
+          <h2>{tr("ppTitle")}</h2>
+          <p>{tr("ppSub")}</p>
         </div>
       </div>
       <OptionGroup
-        label="1 · Produk"
+        label={tr("stepProduct")}
         value={productId}
         onChange={(v) => {
           onProduct(v);
@@ -194,7 +200,7 @@ export default function PricingPanel({
         }))}
       />
       <OptionGroup
-        label="2 · Ukuran kaos"
+        label={tr("stepSize")}
         value={size}
         onChange={(v) => {
           onSize(v);
@@ -208,9 +214,9 @@ export default function PricingPanel({
               : `${s} — ${rp(productPriceForSize(s))}`,
         }))}
       />
-      <SizeChart productId={productId} />
+      <SizeChart productId={productId} tr={tr} />
       <OptionGroup
-        label="3 · Sablon depan"
+        label={tr("stepFront")}
         value={frontPrintId}
         onChange={(v) => {
           onFrontPrint(v);
@@ -223,12 +229,11 @@ export default function PricingPanel({
       />
       {frontPrint && frontPrint.wCm === frontPrint.hCm ? (
         <p className="small-note">
-          Kotak {frontPrint.wCm}×{frontPrint.hCm} cm — orientasi tidak
-          berpengaruh.
+          {tr("squareNote", { w: frontPrint.wCm, h: frontPrint.hCm })}
         </p>
       ) : (
         <OptionGroup
-          label="Orientasi sablon depan"
+          label={tr("orientFront")}
           value={frontOrientation}
           onChange={(v) => {
             onFrontOrientation(v);
@@ -239,11 +244,11 @@ export default function PricingPanel({
               ? [
                   {
                     value: "portrait",
-                    label: `Potret ${frontPrint.wCm}×${frontPrint.hCm} cm`,
+                    label: `${tr("portrait")} ${frontPrint.wCm}×${frontPrint.hCm} cm`,
                   },
                   {
                     value: "landscape",
-                    label: `Lanskap ${frontPrint.hCm}×${frontPrint.wCm} cm`,
+                    label: `${tr("landscape")} ${frontPrint.hCm}×${frontPrint.wCm} cm`,
                   },
                 ]
               : []
@@ -251,25 +256,29 @@ export default function PricingPanel({
         />
       )}
       <p className="small-note">
-        Dipakai di mockup: {quote.frontPrintLabel} — {rp(quote.front)}.
-        Harga tidak berubah antara potret dan lanskap.
+        {tr("usedInMockup", {
+          label: quote.frontPrintLabel,
+          price: rp(quote.front),
+        })}{" "}
+        {tr("priceUnchanged")}
       </p>
       {frontPrint && (
         <MaskingFigure
           print={frontPrint}
-          sideLabel="depan"
+          side="front"
           usedLabel={quote.frontPrintLabel}
+          tr={tr}
         />
       )}
       <OptionGroup
-        label="4 · Sablon belakang"
+        label={tr("stepBack")}
         value={backPrintId}
         onChange={(v) => {
           onBackPrint(v);
           setSuccess("");
         }}
         options={[
-          { value: null, label: "Tanpa sablon — Rp0" },
+          { value: null, label: tr("noPrintOption") },
           ...config.printSizes.map((p) => ({
             value: p.id,
             label: `${p.label} — ${rp(p.price)}`,
@@ -278,12 +287,11 @@ export default function PricingPanel({
       />
       {backPrint && backPrint.wCm === backPrint.hCm ? (
         <p className="small-note">
-          Kotak {backPrint.wCm}×{backPrint.hCm} cm — orientasi tidak
-          berpengaruh.
+          {tr("squareNote", { w: backPrint.wCm, h: backPrint.hCm })}
         </p>
       ) : backPrint ? (
         <OptionGroup
-          label="Orientasi sablon belakang"
+          label={tr("orientBack")}
           value={backOrientation}
           onChange={(v) => {
             onBackOrientation(v);
@@ -292,30 +300,34 @@ export default function PricingPanel({
           options={[
             {
               value: "portrait",
-              label: `Potret ${backPrint.wCm}×${backPrint.hCm} cm`,
+              label: `${tr("portrait")} ${backPrint.wCm}×${backPrint.hCm} cm`,
             },
             {
               value: "landscape",
-              label: `Lanskap ${backPrint.hCm}×${backPrint.wCm} cm`,
+              label: `${tr("landscape")} ${backPrint.hCm}×${backPrint.wCm} cm`,
             },
           ]}
         />
       ) : null}
       {backPrint && (
         <p className="small-note">
-          Untuk belakang: {quote.backPrintLabel} — {rp(quote.back)}.
+          {tr("backSummary", {
+            label: quote.backPrintLabel,
+            price: rp(quote.back),
+          })}
         </p>
       )}
       {backPrint && (
         <MaskingFigure
           print={backPrint}
-          sideLabel="belakang"
+          side="back"
           usedLabel={quote.backPrintLabel}
+          tr={tr}
         />
       )}
       <div className="quantity-field">
         <label htmlFor="quantity" className="field-label">
-          Jumlah kaos
+          {tr("qtyLabel")}
         </label>
         <div>
           <input
@@ -335,12 +347,10 @@ export default function PricingPanel({
         </div>
       </div>
       <div className="pricing-box" aria-live="polite">
-        <div className="eyebrow">ESTIMASI HARGA · {quantity} PCS</div>
+        <div className="eyebrow">{tr("estimate", { qty: quantity })}</div>
         <strong className="price">{rp(quote.total)}</strong>
         <span className="price-caption">
-          {config.pricingIsExample
-            ? "Contoh, belum harga toko"
-            : "Harga toko"}
+          {config.pricingIsExample ? tr("priceExample") : tr("priceShop")}
         </span>
         <dl className="price-breakdown">
           <div>
@@ -350,24 +360,24 @@ export default function PricingPanel({
             <dd>{rp(quote.shirt)}</dd>
           </div>
           <div>
-            <dt>Sablon depan {frontPrint ? frontPrint.label : ""}</dt>
+            <dt>{tr("frontRow")} {frontPrint ? frontPrint.label : ""}</dt>
             <dd>{rp(quote.front)}</dd>
           </div>
           <div>
             <dt>
-              Sablon belakang {backPrint ? backPrint.label : "(tanpa sablon)"}
+              {tr("backRow")} {backPrint ? backPrint.label : tr("noBackSuffix")}
             </dt>
             <dd>{rp(quote.back)}</dd>
           </div>
           <div className="unit-price">
-            <dt>Per kaos</dt>
+            <dt>{tr("perShirt")}</dt>
             <dd>{rp(quote.unit)}</dd>
           </div>
         </dl>
       </div>
       <form onSubmit={save} className="order-form">
         <label className="field-label" htmlFor="customer">
-          Nama pelanggan
+          {tr("nameLabel")}
         </label>
         <input
           id="customer"
@@ -377,13 +387,13 @@ export default function PricingPanel({
             setSuccess("");
           }}
           maxLength={80}
-          placeholder="Nama untuk order demo"
+          placeholder={tr("namePlaceholder")}
           required
           minLength={2}
           autoComplete="off"
         />
         <label className="field-label" htmlFor="phone">
-          Nomor WhatsApp
+          {tr("phoneLabel")}
         </label>
         <input
           id="phone"
@@ -404,7 +414,7 @@ export default function PricingPanel({
           ) : (
             <ArrowRight size={16} />
           )}{" "}
-          Simpan order demo
+          {tr("saveOrder")}
         </button>
       </form>
       {error && (
@@ -416,7 +426,7 @@ export default function PricingPanel({
         <div className="success-note" role="status">
           {success}
           <button className="text-button" onClick={onDashboard}>
-            Lihat di dashboard →
+            {tr("viewDashboard")}
           </button>
           {lastOrder && (
             <a
@@ -425,7 +435,7 @@ export default function PricingPanel({
               target="_blank"
               rel="noreferrer"
             >
-              Kirim ke toko via WhatsApp →
+              {tr("sendWa")}
             </a>
           )}
         </div>
@@ -433,10 +443,9 @@ export default function PricingPanel({
       <div className="production-note">
         <CheckCheck size={18} />
         <p>
-          <strong>Desainmu ikut tersimpan.</strong>
+          <strong>{tr("productionNoteTitle")}</strong>
           <br />
-          Order lokal untuk demo. Belum dikirim ke toko dan belum ada
-          pembayaran.
+          {tr("productionNote")}
         </p>
       </div>
     </section>

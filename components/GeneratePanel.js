@@ -9,8 +9,10 @@ import {
 } from "lucide-react";
 import { config, sampleBriefs } from "../lib/config";
 import { metaRequest } from "../lib/api";
+import { translate } from "../lib/i18n";
 
-export default function GeneratePanel({ design, onDesign, onMode }) {
+export default function GeneratePanel({ design, onDesign, onMode, t }) {
+  const tr = t || ((key, vars) => translate("id", key, vars));
   const [brief, setBrief] = useState(""),
     [demo, setDemo] = useState(config.demoMode),
     [liveReady, setLiveReady] = useState(false);
@@ -34,17 +36,17 @@ export default function GeneratePanel({ design, onDesign, onMode }) {
   };
   async function generate() {
     if (brief.trim().length < 5) {
-      setError("Ceritakan idemu sedikit lagi, minimal 5 karakter.");
+      setError(tr("briefTooShort"));
       return;
     }
     setError("");
     setRecord(null);
     setBusy(
-      demo ? "Memilih contoh sesuai tema…" : "Muse Spark merapikan brief…",
+      demo ? tr("busyPickDemo") : tr("busySpark"),
     );
     try {
       const refined = await metaRequest({ action: "refine", brief, demo });
-      setBusy(demo ? "Menyiapkan desain demo…" : "Muse Image membuat desain…");
+      setBusy(demo ? tr("busyPrepareDemo") : tr("busyImage"));
       const result = await metaRequest({
         action: "image",
         prompt: refined.prompt,
@@ -76,8 +78,8 @@ export default function GeneratePanel({ design, onDesign, onMode }) {
           <Sparkles size={19} />
         </span>
         <div>
-          <h2>Ceritakan idemu</h2>
-          <p>Mulai dari satu kalimat sederhana.</p>
+          <h2>{tr("genTitle")}</h2>
+          <p>{tr("genSub")}</p>
         </div>
       </div>
       <div className="assistant-note">
@@ -85,27 +87,24 @@ export default function GeneratePanel({ design, onDesign, onMode }) {
           <Sparkles size={16} />
         </span>
         <div>
-          <strong>Halo, kreator!</strong>
-          <p>
-            Mau bikin kaos untuk siapa? Ceritakan tema, tulisan, dan gaya yang
-            kamu suka.
-          </p>
+          <strong>{tr("genHello")}</strong>
+          <p>{tr("genHelloText")}</p>
         </div>
       </div>
       <label className="field-label" htmlFor="brief">
-        Brief desain kamu
+        {tr("briefLabel")}
       </label>
       <div className="prompt-box">
         <textarea
           id="brief"
           value={brief}
           onChange={(e) => setBrief(e.target.value)}
-          placeholder="Misalnya, kaos komunitas sepeda dengan gunung dan tulisan ‘GOWES PAGI’, gaya vintage..."
+          placeholder={tr("briefPlaceholder")}
           maxLength={1500}
           disabled={!!busy}
         />
         <div>
-          <span>Bahasa santai juga boleh</span>
+          <span>{tr("briefHint")}</span>
           <span>{brief.length}/1500</span>
         </div>
       </div>
@@ -119,14 +118,12 @@ export default function GeneratePanel({ design, onDesign, onMode }) {
         ) : (
           <WandSparkles size={18} />
         )}{" "}
-        {busy ? "Menyiapkan desain…" : "Buat desain"}{" "}
+        {busy ? tr("generatingBtn") : tr("generateBtn")}{" "}
         {!busy && <ArrowRight size={17} />}
       </button>
       <p className="small-note center" role="status" aria-live="polite">
         {busy ||
-          (demo
-            ? "Demo: memilih 1 dari 3 desain lokal, bukan AI live."
-            : "Mode live: memakai kredit API Meta.")}
+          (demo ? tr("statusDemo") : tr("statusLive"))}
       </p>
       {error && (
         <div className="error" role="alert">
@@ -138,12 +135,12 @@ export default function GeneratePanel({ design, onDesign, onMode }) {
               setError("");
             }}
           >
-            Pakai desain cadangan
+            {tr("fallbackDesign")}
           </button>
         </div>
       )}
       <details className="connection-settings">
-        <summary>Pengaturan koneksi AI</summary>
+        <summary>{tr("connSettings")}</summary>
         <label>
           <input
             type="checkbox"
@@ -154,24 +151,22 @@ export default function GeneratePanel({ design, onDesign, onMode }) {
               onMode(e.target.checked ? "live" : "demo");
             }}
           />{" "}
-          Uji API live
+          {tr("liveTest")}
         </label>
         <p>
-          {liveReady
-            ? "Koneksi server tersedia. Uji kecil dahulu dan cek Billing."
-            : "API belum aktif. Pemilik mengisi key di server setelah istirahat."}
+          {liveReady ? tr("connReady") : tr("connNotReady")}
         </p>
       </details>
       {record && (
         <details className="trace">
           <summary>
-            {record.demo ? "Hasil contoh siap" : "Desain AI siap"} · lihat
-            prompt
+            {record.demo ? tr("traceSampleReady") : tr("traceAiReady")} ·{" "}
+            {tr("traceViewPrompt")}
           </summary>
           <p>{record.prompt}</p>
           <small>
             {record.demo
-              ? "Aset lokal, tidak ada panggilan berbayar."
+              ? tr("traceLocal")
               : `Spark ${record.trace.sparkMs} ms · Image ${record.trace.imageMs} ms`}
           </small>
           <button
@@ -187,13 +182,13 @@ export default function GeneratePanel({ design, onDesign, onMode }) {
               setTimeout(() => URL.revokeObjectURL(a.href), 1000);
             }}
           >
-            Unduh bukti prompt & hasil
+            {tr("traceDownload")}
           </button>
         </details>
       )}
       <div className="divider-label">
         <span />
-        ATAU MULAI DARI INSPIRASI
+        {tr("orInspiration")}
         <span />
       </div>
       <div className="inspiration-list">
@@ -218,7 +213,7 @@ export default function GeneratePanel({ design, onDesign, onMode }) {
       <div className="pipeline">
         <span className="pipeline-dot" />
         <p>
-          Dirancang untuk <strong>Meta AI</strong>
+          {tr("pipelineFor")} <strong>Meta AI</strong>
           <br />
           <span>Muse Spark → Muse Image → SAM 3.1</span>
         </p>

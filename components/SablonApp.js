@@ -6,10 +6,13 @@ import {
   CircleHelp,
   ClipboardList,
   Expand,
+  Languages,
   Layers3,
+  Moon,
   Shirt,
   SlidersHorizontal,
   Sparkles,
+  Sun,
   X,
 } from "lucide-react";
 import MockupCanvas from "./MockupCanvas";
@@ -25,15 +28,33 @@ import {
   writeOrders,
   orderStatuses,
 } from "../lib/orders";
+import { translate } from "../lib/i18n";
 import { config, sampleBriefs } from "../lib/config";
 
 const tabs = [
-  { id: "ai", label: "AI Generate", icon: Sparkles },
-  { id: "editor", label: "Custom Editor", icon: SlidersHorizontal },
-  { id: "dashboard", label: "Dashboard Order", icon: ClipboardList },
+  { id: "ai", labelKey: "tabAi", icon: Sparkles },
+  { id: "editor", labelKey: "tabEditor", icon: SlidersHorizontal },
+  { id: "dashboard", labelKey: "tabDashboard", icon: ClipboardList },
 ];
 export default function SablonApp() {
   const [tab, setTab] = useState("ai");
+  const [theme, setTheme] = useState("light");
+  const [lang, setLang] = useState("id");
+  const tr = (key, vars) => translate(lang, key, vars);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("sablonai.theme") === "dark") setTheme("dark");
+      if (localStorage.getItem("sablonai.lang") === "en") setLang("en");
+    } catch {}
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.lang = lang === "en" ? "en" : "id";
+    try {
+      localStorage.setItem("sablonai.theme", theme);
+      localStorage.setItem("sablonai.lang", lang);
+    } catch {}
+  }, [theme, lang]);
   const [color, setColor] = useState(config.colors[0]);
   // Paket 1B: produk, ukuran kaos, dan ukuran sablon tetap menggantikan
   // lebar/tinggi cetak bebas. Ukuran sablon depan menentukan area cetak
@@ -169,8 +190,8 @@ export default function SablonApp() {
   }
   return (
     <div className="app-shell">
-      <aside className="rail" aria-label="Navigasi studio">
-        <a href="/" className="logo-mark" aria-label="SablonAI beranda">
+      <aside className="rail" aria-label={tr("studioNavHome")}>
+        <a href="/" className="logo-mark" aria-label={tr("homeLabel")}>
           <Layers3 size={26} />
         </a>
         <div className="rail-links">
@@ -178,8 +199,8 @@ export default function SablonApp() {
             <button
               key={t.id}
               className={tab === t.id ? "rail-item active" : "rail-item"}
-              aria-label={t.label}
-              title={t.label}
+              aria-label={tr(t.labelKey)}
+              title={tr(t.labelKey)}
               onClick={() => setTab(t.id)}
             >
               <t.icon size={21} />
@@ -188,11 +209,30 @@ export default function SablonApp() {
         </div>
         <button
           className="rail-help"
-          aria-label="Panduan studio"
+          aria-label={tr("guideLabel")}
           onClick={() => setHelp(true)}
         >
           <CircleHelp size={21} />
         </button>
+        <div className="rail-prefs">
+          <button
+            className="pref-button"
+            aria-label={tr("themeToggle")}
+            title={tr("themeToggle")}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
+          </button>
+          <button
+            className="pref-button"
+            aria-label={tr("langToggle")}
+            title={tr("langToggle")}
+            onClick={() => setLang(lang === "en" ? "id" : "en")}
+          >
+            <Languages size={19} />
+            <span className="lang-badge">{lang === "en" ? "EN" : "ID"}</span>
+          </button>
+        </div>
         <div className="avatar">SA</div>
       </aside>
       <div className="workspace">
@@ -203,39 +243,36 @@ export default function SablonApp() {
           </a>
           <div className="breadcrumb">
             Workspace <ChevronRight size={13} />{" "}
-            <strong>Studio desain</strong>
+            <strong>{tr("breadcrumbStudio")}</strong>
           </div>
           <div className="top-right">
             <span className="demo-badge">
-              <span /> {mode === "demo" ? "Mode demo" : "API live"}
+              <span /> {mode === "demo" ? tr("modeDemo") : tr("modeLive")}
             </span>
             <button className="help-button" onClick={() => setHelp(true)}>
-              <CircleHelp size={16} /> Panduan
+              <CircleHelp size={16} /> {tr("help")}
             </button>
           </div>
         </header>
         <main>
           <section className="page-heading">
             <div>
-              <div className="eyebrow">DARI CERITA JADI KARYA</div>
-              <h1>Ide kamu. Kaos kamu.</h1>
-              <p>
-                Ruang kecil untuk ide besar. Yuk, bikin sesuatu yang kamu
-                banget.
-              </p>
+              <div className="eyebrow">{tr("heroEyebrow")}</div>
+              <h1>{tr("heroTitle")}</h1>
+              <p>{tr("heroSub")}</p>
             </div>
             <div className="studio-tag">
               <span className="tiny-shirt">
                 <Shirt size={19} />
               </span>
               <div>
-                <strong>Studio DTF</strong>
-                <small>Dibuat untuk usaha lokal</small>
+                <strong>{tr("studioDtf")}</strong>
+                <small>{tr("studioDtfSub")}</small>
               </div>
             </div>
           </section>
           <div className="studio-navigation">
-            <nav aria-label="Tampilan studio">
+            <nav aria-label={tr("studioNavLabel")}>
               {tabs.map((t) => (
                 <button
                   key={t.id}
@@ -244,18 +281,19 @@ export default function SablonApp() {
                   className={tab === t.id ? "tab active" : "tab"}
                 >
                   <t.icon size={17} />
-                  {t.label}
+                  {tr(t.labelKey)}
                 </button>
               ))}
             </nav>
             <span className="saved-indicator">
-              <span /> Ruang berkarya kamu
+              <span /> {tr("savedWorkspace")}
             </span>
           </div>
           <div className="studio-grid" hidden={tab === "dashboard"}>
             <div className="design-tools">
               <div hidden={tab !== "ai"}>
                 <GeneratePanel
+                  t={tr}
                   design={design}
                   onDesign={updateDesign}
                   onMode={setMode}
@@ -264,6 +302,7 @@ export default function SablonApp() {
               <div hidden={tab !== "editor"}>
                 {editorOpened && (
                   <EditorCanvas
+                    t={tr}
                     ref={editor}
                     initialImage={design.image}
                     onChange={setEditedDesign}
@@ -277,11 +316,11 @@ export default function SablonApp() {
             >
               <div className="preview-toolbar">
                 <div>
-                  <span className="live-dot" /> Pratinjau kaos
+                  <span className="live-dot" /> {tr("previewTitle")}
                 </div>
                 <div>
                   <button
-                    aria-label="Tampilkan batas area cetak"
+                    aria-label={tr("showArea")}
                     aria-pressed={showArea}
                     className={
                       showArea ? "icon-button selected" : "icon-button"
@@ -292,9 +331,7 @@ export default function SablonApp() {
                   </button>
                   <button
                     className="icon-button"
-                    aria-label={
-                      full ? "Tutup pratinjau penuh" : "Perbesar pratinjau"
-                    }
+                    aria-label={full ? tr("closeFull") : tr("enlarge")}
                     onClick={() => setFull(!full)}
                   >
                     {full ? <X size={17} /> : <Expand size={17} />}
@@ -302,7 +339,7 @@ export default function SablonApp() {
                 </div>
               </div>
               <div className="mockup-stage">
-                <span className="view-label">DEPAN</span>
+                <span className="view-label">{tr("viewFront")}</span>
                 <MockupCanvas
                   ref={mockup}
                   artwork={
@@ -318,21 +355,23 @@ export default function SablonApp() {
                 <div className="print-measure">
                   <span />
                   {frontDims.wCm} × {frontDims.hCm} cm
-                  {frontIsLandscape ? " (Lanskap)" : ""}
+                  {frontIsLandscape ? tr("landscapeSuffix") : ""}
                   <span />
                 </div>
                 <span className="mockup-label">
-                  MOCKUP FOTO TOKO •{" "}
-                  {design.demo !== false ? "ARTWORK DEMO" : "ARTWORK META AI"}
+                  {tr("mockupShop")} •{" "}
+                  {design.demo !== false ? tr("artworkDemo") : tr("artworkMeta")}
                 </span>
               </div>
               <ColourGroup
+                t={tr}
                 value={color}
                 onChange={setColor}
                 colors={config.colors}
               />
             </section>
             <PricingPanel
+              t={tr}
               productId={productId}
               size={size}
               frontPrintId={frontPrintId}
@@ -351,6 +390,8 @@ export default function SablonApp() {
           </div>
           {tab === "dashboard" && (
             <OrderDashboard
+              t={tr}
+              lang={lang}
               orders={orders}
               onStatus={changeStatus}
               onNew={() => setTab("ai")}
@@ -360,11 +401,11 @@ export default function SablonApp() {
           <section className="gallery-section" hidden={tab === "dashboard"}>
             <div className="gallery-title">
               <div>
-                <h2>Sedikit inspirasi, banyak kemungkinan.</h2>
-                <p>Contoh desain untuk memulai ceritamu.</p>
+                <h2>{tr("galleryTitle")}</h2>
+                <p>{tr("gallerySub")}</p>
               </div>
               <span>
-                03 DESAIN PILIHAN <ArrowRight size={16} />
+                {tr("galleryCount")} <ArrowRight size={16} />
               </span>
             </div>
             <div className="gallery-grid">
@@ -378,7 +419,7 @@ export default function SablonApp() {
                   }}
                 >
                   <div className="gallery-art">
-                    <img src={s.image} alt={"Contoh desain " + s.title} />
+                    <img src={s.image} alt={tr("designExampleAlt") + s.title} />
                     <span className="gallery-action">
                       <ArrowRight size={20} />
                     </span>
@@ -393,8 +434,8 @@ export default function SablonApp() {
           </section>
           <footer>
             <span>
-              © 2026 SablonAI <span className="footer-dot">•</span> Dari ide
-              lokal, jadi karya personal.
+              © 2026 SablonAI <span className="footer-dot">•</span>{" "}
+              {tr("footerLeft")}
             </span>
             <span>
               Build for Your World <span className="footer-dot">/</span> Meta AI
@@ -415,26 +456,22 @@ export default function SablonApp() {
             <button
               className="close-modal icon-button"
               autoFocus
-              aria-label="Tutup panduan"
+              aria-label={tr("closeGuide")}
               onClick={() => setHelp(false)}
             >
               <X />
             </button>
-            <div className="eyebrow">SELAMAT DATANG DI STUDIO</div>
-            <h2 id="help-title">Dari cerita jadi kaos.</h2>
+            <div className="eyebrow">{tr("helpEyebrow")}</div>
+            <h2 id="help-title">{tr("helpTitle")}</h2>
             <ol>
-              <li>Ceritakan ide atau pilih satu inspirasi.</li>
-              <li>Pilih produk, warna kaos, dan ukuran sablon.</li>
-              <li>Edit gambar dan teks di Custom Editor.</li>
-              <li>Masukkan nama dan simpan order demo.</li>
+              <li>{tr("helpStep1")}</li>
+              <li>{tr("helpStep2")}</li>
+              <li>{tr("helpStep3")}</li>
+              <li>{tr("helpStep4")}</li>
             </ol>
-            <p className="notice">
-              Mode demo memakai desain lokal, bukan hasil Meta AI. Foto kaos
-              masih ilustrasi. Harga sudah harga toko. Dashboard tersimpan
-              hanya di browser ini, belum terhubung ke toko.
-            </p>
+            <p className="notice">{tr("helpNotice")}</p>
             <button className="primary" onClick={() => setHelp(false)}>
-              Mulai berkarya <ArrowRight size={17} />
+              {tr("helpStart")} <ArrowRight size={17} />
             </button>
           </section>
         </div>

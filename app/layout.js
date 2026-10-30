@@ -7,7 +7,15 @@ export const metadata = {
 };
 export default function RootLayout({ children }) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('sablonai.theme');if(t==='dark'){document.documentElement.dataset.theme='dark';}var l=localStorage.getItem('sablonai.lang');if(l==='en'){document.documentElement.lang='en';}}catch(e){}",
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

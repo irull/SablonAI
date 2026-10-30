@@ -6,16 +6,17 @@ import { Check } from "lucide-react";
 // warna dari config.colors (referensi yang sama), jadi checked bekerja
 // dengan perbandingan referensi. Gaya .swatch/.swatch.active dari
 // globals.css dipakai kembali, bukan gaya baru.
-export default function ColourGroup({ value, onChange, colors }) {
+export default function ColourGroup({ value, onChange, colors, t }) {
+  const tr = t || ((key) => key);
   return (
     <div className="color-section">
       <div className="section-label">
-        Warna kaos <strong>{value.name}</strong>
+        {tr("colorLabel")} <strong>{value.name}</strong>
       </div>
       <RadioGroup
         value={value}
         onChange={onChange}
-        aria-label="Warna kaos"
+        aria-label={tr("colorLabel")}
         className="swatches"
       >
         {colors.map((c) => (
@@ -23,7 +24,7 @@ export default function ColourGroup({ value, onChange, colors }) {
             key={c.name}
             value={c}
             style={{ "--swatch": c.hex }}
-            aria-label={"Warna " + c.name}
+            aria-label={tr("colorPrefix") + c.name}
             className={({ checked }) =>
               checked ? "swatch active" : "swatch"
             }
@@ -41,9 +42,7 @@ export default function ColourGroup({ value, onChange, colors }) {
           </Radio>
         ))}
       </RadioGroup>
-      <p className="small-note">
-        Warna di layar adalah preview, bukan patokan 100% kain asli.
-      </p>
+      <p className="small-note">{tr("colorNote")}</p>
     </div>
   );
 }

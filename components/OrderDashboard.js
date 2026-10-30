@@ -10,11 +10,12 @@ import {
 import { formatRupiah as rp } from "../lib/config";
 import { downloadJSON, orderStatuses } from "../lib/orders";
 import { buildWhatsAppCustomerLink } from "../lib/whatsapp";
+import { statusLabel, translate } from "../lib/i18n";
 
 // Label sablon di dashboard: pakai quote label dulu, karena itu sudah
 // termasuk ukuran cm dan, untuk order baru, orientasi (mis. "20×15 cm
 // (A5, Lanskap)"). ID saja (mis. "A5") hanya fallback untuk order lama.
-function printLabel(order, side) {
+function printLabel(order, side, tr) {
   if (side === "front") {
     if (order.quote && order.quote.frontPrintLabel)
       return order.quote.frontPrintLabel;
@@ -24,12 +25,14 @@ function printLabel(order, side) {
   if (order.quote && order.quote.backPrintLabel)
     return order.quote.backPrintLabel;
   if (order.backPrintId) return order.backPrintId;
-  return "Tanpa sablon";
+  return tr ? tr("noPrint") : "Tanpa sablon";
 }
 
-export default function OrderDashboard({ orders, onStatus, onNew, error }) {
+export default function OrderDashboard({ orders, onStatus, onNew, error, t, lang }) {
+  const tr = t || ((key, vars) => translate("id", key, vars));
+  const uiLang = lang || "id";
   const [query, setQuery] = useState(""),
-    [filter, setFilter] = useState("Semua"),
+    [filter, setFilter] = useState("ALL"),
     [detail, setDetail] = useState(null),
     [localError, setLocalError] = useState("");
   useEffect(() => {
@@ -41,7 +44,7 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
   }, []);
   const shown = orders.filter(
     (o) =>
-      (filter === "Semua" || o.status === filter) &&
+      (filter === "ALL" || o.status === filter) &&
       (o.customer + " " + o.id).toLowerCase().includes(query.toLowerCase()),
   );
   const selected = orders.find((o) => o.id === detail);
@@ -63,9 +66,9 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
     <section className="dashboard">
       <div className="dashboard-heading">
         <div>
-          <div className="eyebrow">DARI STUDIO KE ANTREAN PRODUKSI</div>
-          <h2>Setiap kaos punya cerita.</h2>
-          <p>Kelola order demo yang tersimpan di browser ini.</p>
+          <div className="eyebrow">{tr("dbEyebrow")}</div>
+          <h2>{tr("dbTitle")}</h2>
+          <p>{tr("dbSub")}</p>
         </div>
         <button
           className="secondary"
@@ -77,31 +80,27 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
             )
           }
         >
-          <ArrowDownToLine size={16} /> Cadangkan order
+          <ArrowDownToLine size={16} /> {tr("backupBtn")}
         </button>
       </div>
       <div className="dashboard-stats">
         <div className="card">
-          <span>Semua order</span>
+          <span>{tr("statAll")}</span>
           <strong>{orders.length}</strong>
-          <small>tersimpan lokal</small>
+          <small>{tr("statAllSub")}</small>
         </div>
         <div className="card">
-          <span>Sedang diproses</span>
+          <span>{tr("statProcessing")}</span>
           <strong>{orders.filter((o) => o.status === "Diproses").length}</strong>
-          <small>siap diperiksa</small>
+          <small>{tr("statProcessingSub")}</small>
         </div>
         <div className="card">
-          <span>Total order</span>
+          <span>{tr("statTotal")}</span>
           <strong>{rp(orders.reduce((a, o) => a + o.quote.total, 0))}</strong>
-          <small>harga toko</small>
+          <small>{tr("statTotalSub")}</small>
         </div>
       </div>
-      <p className="notice">
-        Dashboard demo lokal, belum memakai akun pemilik atau database. Order
-        hanya muncul di browser dan perangkat ini. Harga sudah harga toko.
-        Unduh cadangan sebelum menghapus data browser.
-      </p>
+      <p className="notice">{tr("dbNotice")}</p>
       {(error || localError) && (
         <p role="alert" className="error">
           {error || localError}
@@ -112,8 +111,8 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
           <label>
             <Search size={16} />
             <input
-              aria-label="Cari nama atau nomor order"
-              placeholder="Cari nama atau nomor order…"
+              aria-label={tr("searchLabel")}
+              placeholder={tr("searchPlaceholder")}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -121,13 +120,15 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
             />
           </label>
           <select
-            aria-label="Filter status order"
+            aria-label={tr("filterLabel")}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           >
-            <option>Semua</option>
+            <option value="ALL">{tr("filterAll")}</option>
             {orderStatuses.map((s) => (
-              <option key={s}>{s}</option>
+              <option key={s} value={s}>
+                {statusLabel(uiLang, s)}
+              </option>
             ))}
           </select>
         </div>
@@ -138,16 +139,16 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
             </span>
             <h3>
               {orders.length
-                ? "Belum ada yang cocok."
-                : "Cerita pertamamu dimulai di sini."}
+                ? tr("emptyMatchTitle")
+                : tr("emptyTitle")}
             </h3>
             <p>
               {orders.length
-                ? "Coba nama atau status lain."
-                : "Buat desain, isi nama, lalu simpan order demo di studio."}
+                ? tr("emptyMatchSub")
+                : tr("emptySub")}
             </p>
             <button className="primary" onClick={onNew}>
-              Kembali ke studio <ArrowRight size={16} />
+              {tr("backStudio")} <ArrowRight size={16} />
             </button>
           </div>
         ) : (
@@ -155,11 +156,11 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
             <table>
               <thead>
                 <tr>
-                  <th>Order / Pelanggan</th>
-                  <th>Kaos & cetak</th>
-                  <th>Harga toko</th>
-                  <th>Status</th>
-                  <th>Detail</th>
+                  <th>{tr("thOrder")}</th>
+                  <th>{tr("thShirt")}</th>
+                  <th>{tr("thPrice")}</th>
+                  <th>{tr("thStatus")}</th>
+                  <th>{tr("thDetail")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -169,7 +170,7 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
                       <div className="order-person">
                         <img
                           src={o.preview}
-                          alt={"Mockup order " + o.customer}
+                          alt={tr("orderPersonAlt") + o.customer}
                         />
                         <div>
                           <strong>{o.customer}</strong>
@@ -186,8 +187,8 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
                       {o.product || "Kaos"} · {o.size} · {o.color.name} ·{" "}
                       {o.quantity} pcs
                       <small>
-                        Depan: {printLabel(o, "front")} · Belakang:{" "}
-                        {printLabel(o, "back")}
+                        {tr("frontShort")}: {printLabel(o, "front", tr)} ·{" "}
+                        {tr("backShort")}: {printLabel(o, "back", tr)}
                       </small>
                     </td>
                     <td>
@@ -196,12 +197,14 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
                     </td>
                     <td>
                       <select
-                        aria-label={"Status " + o.id}
+                        aria-label={tr("statusAriaLabel") + o.id}
                         value={o.status}
                         onChange={(e) => status(o.id, e.target.value)}
                       >
                         {orderStatuses.map((s) => (
-                          <option key={s}>{s}</option>
+                          <option key={s} value={s}>
+                            {statusLabel(uiLang, s)}
+                          </option>
                         ))}
                       </select>
                     </td>
@@ -210,7 +213,7 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
                         className="secondary"
                         onClick={() => setDetail(o.id)}
                       >
-                        Lihat
+                        {tr("viewBtn")}
                       </button>
                     </td>
                   </tr>
@@ -232,7 +235,7 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
             <button
               className="close-modal icon-button"
               autoFocus
-              aria-label="Tutup detail order"
+              aria-label={tr("closeDetail")}
               onClick={() => setDetail(null)}
             >
               <X />
@@ -241,28 +244,27 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
             <h2 id="order-title">{selected.customer}</h2>
             {selected.phone && (
               <p className="small-note">
-                WhatsApp pelanggan: {selected.phone}
+                {tr("waCustomerLabel")}
+                {selected.phone}
               </p>
             )}
-            <img src={selected.preview} alt="Mockup order tersimpan" />
+            <img src={selected.preview} alt={tr("mockupAlt")} />
             <p>
               {selected.product || "Kaos"} · {selected.size} ·{" "}
-              {selected.color.name} · {selected.quantity} pcs · sablon depan{" "}
-              {printLabel(selected, "front")}, belakang{" "}
-              {printLabel(selected, "back")}
+              {selected.color.name} · {selected.quantity} pcs ·{" "}
+              {tr("frontShort")} {printLabel(selected, "front", tr)},{" "}
+              {tr("backShort")} {printLabel(selected, "back", tr)}
             </p>
             <p className="detail-price">
-              {rp(selected.quote.total)} <small>harga toko</small>
+              {rp(selected.quote.total)} <small>{tr("priceShop")}</small>
             </p>
             <p className="small-note">
               {selected.design.demo
-                ? "Artwork contoh/demo"
-                : "Artwork dari API Meta"}{" "}
+                ? tr("artworkDemoLabel")
+                : tr("artworkMetaLabel")}{" "}
               ·{" "}
-              {selected.source === "editor"
-                ? "diedit di Custom Editor"
-                : "AI Generate"}
-              . PNG demo perlu diperiksa resolusinya sebelum produksi.
+              {selected.source === "editor" ? tr("srcEditor") : tr("srcGenerate")}
+              {tr("detailNoteSuffix")}
             </p>
             <div className="detail-actions">
               <button
@@ -277,7 +279,7 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
                 className="secondary"
                 onClick={() => downloadJSON(selected, selected.id + ".json")}
               >
-                <ArrowDownToLine size={15} /> Detail lengkap
+                <ArrowDownToLine size={15} /> {tr("detailFull")}
               </button>
               {selected.phone && (
                 <a
@@ -286,7 +288,7 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Hubungi via WhatsApp
+                  {tr("contactWa")}
                 </a>
               )}
             </div>

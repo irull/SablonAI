@@ -20,24 +20,25 @@ import {
   Type,
 } from "lucide-react";
 import { metaRequest } from "../lib/api";
+import { translate } from "../lib/i18n";
 
-const readImage = (src) =>
+const readImage = (src, errMsg = "Gambar gagal dibaca.") =>
   new Promise((resolve, reject) => {
     const im = new Image();
     im.onload = () => resolve(im);
-    im.onerror = () => reject(new Error("Gambar gagal dibaca."));
+    im.onerror = () => reject(new Error(errMsg));
     im.src = src;
   });
-async function normalizedUpload(file) {
+async function normalizedUpload(file, tr) {
   if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
-    throw new Error("Pilih file PNG, JPG, atau WebP.");
+    throw new Error(tr("errFileType"));
   if (file.size > 10 * 1024 * 1024)
-    throw new Error("File terlalu besar. Maksimal 10 MB.");
+    throw new Error(tr("errFileBig"));
   const url = URL.createObjectURL(file);
   try {
     const img = await readImage(url);
     if (img.width * img.height > 24000000)
-      throw new Error("Resolusi gambar terlalu besar. Kecilkan dahulu.");
+      throw new Error(tr("errResTooBig"));
     const scale = Math.min(1, 1024 / Math.max(img.width, img.height));
     const c = document.createElement("canvas");
     c.width = Math.round(img.width * scale);
@@ -49,9 +50,10 @@ async function normalizedUpload(file) {
   }
 }
 const EditorCanvas = forwardRef(function EditorCanvas(
-  { initialImage, onChange, mode },
+  { initialImage, onChange, mode, t },
   ref,
 ) {
+  const tr = t || ((key, vars) => translate("id", key, vars));
   const element = useRef(null),
     canvas = useRef(null),
     fabric = useRef(null),
@@ -64,7 +66,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     [busy, setBusy] = useState(""),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
-  const [text, setText] = useState("Ceritamu di sini"),
+  const [text, setText] = useState(tr("edDefaultText")),
     [textColor, setTextColor] = useState("#284f3f"),
     [subject, setSubject] = useState("logo");
   onChangeRef.current = onChange;
@@ -109,7 +111,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         setReady(true);
       })
       .catch(() =>
-        setError("Editor belum berhasil dimuat. Muat ulang halaman."),
+        setError(tr("errEditorLoad")),
       );
     return () => {
       alive = false;
@@ -141,14 +143,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         canvas.current.requestRenderAll();
         emit();
       })
-      .catch(() => setError("Desain belum dapat dimasukkan ke editor."));
+      .catch(() => setError(tr("errDesignIn")));
   }, [ready, initialImage, emit]);
   async function upload(file) {
     if (!file || !ready) return;
     setError("");
-    setBusy("Memuat gambar…");
+    setBusy(tr("busyLoading"));
     try {
-      const src = await normalizedUpload(file),
+      const src = await normalizedUpload(file, tr),
         img = await fabric.current.FabricImage.fromURL(src);
       if (!canvas.current) return;
       const scale = Math.min(480 / img.width, 560 / img.height);
@@ -157,9 +159,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       canvas.current.setActiveObject(img);
       canvas.current.requestRenderAll();
       emit();
-      setMessage(
-        "Gambar ditambahkan. Geser atau tarik sudutnya untuk mengatur.",
-      );
+      setMessage(tr("msgUploaded"));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -214,7 +214,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const src = obj.getSrc();
       let result;
       if (demo) {
-        const img = await readImage(src);
+        const img = await readImage(src, tr("errImageRead"));
         const c = document.createElement("canvas");
         c.width = img.width;
         c.height = img.height;
@@ -231,7 +231,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         cx.putImageData(p, 0, 0);
         result = c.toDataURL("image/png");
       } else {
-        const img = await readImage(src);
+        const img = await readImage(src, tr("errImageRead"));
         const c = document.createElement("canvas");
         c.width = img.width;
         c.height = img.height;
@@ -245,17 +245,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           })
         ).image;
       }
-      const img = await readImage(result);
+      const img = await readImage(result, tr("errImageRead"));
       if (!canvas.current || !canvas.current.getObjects().includes(obj)) return;
       obj.setElement(img);
       obj.setCoords();
       canvas.current.requestRenderAll();
       emit();
-      setMessage(
-        demo
-          ? "Demo hapus putih selesai. Ini filter warna lokal, bukan SAM; detail putih ikut terhapus."
-          : "Background dipisahkan oleh SAM 3.1. Periksa detail sebelum produksi.",
-      );
+      setMessage(demo ? tr("msgSamDemo") : tr("msgSamLive"));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -277,8 +273,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           <SlidersIcon />
         </span>
         <div>
-          <h2>Racik desainmu</h2>
-          <p>Gambar sendiri. Cerita sendiri.</p>
+          <h2>{tr("edTitle")}</h2>
+          <p>{tr("edSub")}</p>
         </div>
       </div>
       <input
@@ -286,7 +282,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         accept="image/png,image/jpeg,image/webp"
         ref={fileInput}
         className="visually-hidden"
-        aria-label="Pilih file desain"
+        aria-label={tr("pickFile")}
         onChange={(e) => upload(e.target.files[0])}
       />
       <button
@@ -295,12 +291,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         onClick={() => fileInput.current?.click()}
       >
         <ImagePlus size={24} />
-        <strong>Upload desain kamu</strong>
-        <span>PNG, JPG, WebP • maks. 10 MB</span>
+        <strong>{tr("uploadTitle")}</strong>
+        <span>{tr("uploadHint")}</span>
       </button>
       <div className="text-add">
         <label className="field-label" htmlFor="editor-text">
-          Tambahkan tulisan
+          {tr("addText")}
         </label>
         <div>
           <input
@@ -310,7 +306,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             onChange={(e) => setText(e.target.value)}
           />
           <input
-            aria-label="Warna tulisan"
+            aria-label={tr("textColor")}
             type="color"
             value={textColor}
             onChange={(e) => {
@@ -325,7 +321,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           />
           <button
             className="icon-button"
-            aria-label="Tambah teks ke kanvas"
+            aria-label={tr("addTextCanvas")}
             disabled={!ready || !!busy}
             onClick={addText}
           >
@@ -334,15 +330,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         </div>
       </div>
       <div className="editor-canvas-shell">
-        <canvas ref={element} aria-label="Kanvas editor desain" />
+        <canvas ref={element} aria-label={tr("canvasLabel")} />
       </div>
       <div className="editor-tools">
         {[
-          { a: "smaller", l: "Perkecil objek", i: Minus },
-          { a: "bigger", l: "Perbesar objek", i: Plus },
-          { a: "left", l: "Putar kiri", i: RotateCcw },
-          { a: "right", l: "Putar kanan", i: RotateCw },
-          { a: "delete", l: "Hapus objek", i: Trash2 },
+          { a: "smaller", l: tr("toolSmaller"), i: Minus },
+          { a: "bigger", l: tr("toolBigger"), i: Plus },
+          { a: "left", l: tr("toolLeft"), i: RotateCcw },
+          { a: "right", l: tr("toolRight"), i: RotateCw },
+          { a: "delete", l: tr("toolDelete"), i: Trash2 },
         ].map((t) => (
           <button
             key={t.a}
@@ -356,37 +352,34 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           </button>
         ))}
       </div>
-      <p className="small-note">
-        Pilih objek, lalu geser, tarik sudut, atau putar. Klik dua kali teks
-        untuk mengedit. Kanvas = area cetak pada kaos.
-      </p>
+      <p className="small-note">{tr("editorHint")}</p>
       <div className="background-tools">
         <label className="field-label" htmlFor="subject">
-          Objek yang dipertahankan
+          {tr("subjectLabel")}
         </label>
         <input
           id="subject"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           maxLength={120}
-          placeholder="Misalnya: logo, person, cat"
+          placeholder={tr("subjectPlaceholder")}
         />
         <button
           className="secondary"
           disabled={!selected || !!busy || mode !== "live"}
           onClick={() => removeBackground(false)}
         >
-          <Scissors size={16} /> Hapus background · SAM 3.1
+          <Scissors size={16} /> {tr("samButton")}
         </button>
         {mode !== "live" && (
-          <p className="small-note">SAM aktif setelah API live dinyalakan.</p>
+          <p className="small-note">{tr("samNote")}</p>
         )}
         <button
           className="text-button"
           disabled={!selected || !!busy}
           onClick={() => removeBackground(true)}
         >
-          Coba hapus putih (demo lokal)
+          {tr("tryWhite")}
         </button>
       </div>
       {busy && (
@@ -410,12 +403,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         disabled={!ready || !!busy}
         onClick={download}
       >
-        <ArrowDownToLine size={16} /> Unduh artwork PNG
+        <ArrowDownToLine size={16} /> {tr("downloadArtwork")}
       </button>
-      <p className="small-note">
-        Ekspor 600 × 720 px untuk demo. Kualitas cetak perlu diperiksa sebelum
-        produksi.
-      </p>
+      <p className="small-note">{tr("exportNote")}</p>
     </section>
   );
 });

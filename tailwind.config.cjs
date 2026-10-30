@@ -11,14 +11,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        bg: "#f8f9f5",
-        paper: "#ffffff",
-        ink: "#26362a",
-        muted: "#889083",
-        line: "#e8ebe3",
-        olive: "#526a3e",
-        "olive-dark": "#344c29",
-        soft: "#eff3e9",
+        bg: "var(--bg)",
+        paper: "var(--paper)",
+        ink: "var(--ink)",
+        muted: "var(--muted)",
+        line: "var(--line)",
+        olive: "var(--olive)",
+        "olive-dark": "var(--olive-dark)",
+        soft: "var(--soft)",
         focus: "#b17a41",
       },
       fontFamily: {
