@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculatePrice } from "../lib/pricing.js";
-import { readOrders, writeOrders, ORDER_STORAGE_KEY } from "../lib/orders.js";
+import { readOrders, writeOrders, ORDER_STORAGE_KEY, orderStatuses } from "../lib/orders.js";
 test("Known example from owner: short-sleeve M, front A5, back A3", () => {
   assert.deepEqual(
     calculatePrice({
@@ -127,7 +127,7 @@ test("Order storage roundtrip and status survive reload", () => {
     id: "SA-TEST",
     customer: "Pelanggan Demo",
     quote: { total: 110000 },
-    status: "Baru",
+    status: "Diproses",
   };
   writeOrders(s, [order]);
   assert.deepEqual(readOrders(s), [order]);
@@ -191,4 +191,25 @@ test("Invalid orientation is rejected", () => {
   };
   assert.throws(() => calculatePrice({ ...base, frontOrientation: "diagonal" }));
   assert.throws(() => calculatePrice({ ...base, backOrientation: "miring" }));
+});
+
+test("Legacy order statuses migrate to the five tracking steps", () => {
+  const legacy = [
+    { id: "SA-1", customer: "A", quote: { total: 1 }, status: "Baru" },
+    { id: "SA-2", customer: "B", quote: { total: 1 }, status: "Ditinjau" },
+    { id: "SA-3", customer: "C", quote: { total: 1 }, status: "Selesai" },
+    { id: "SA-4", customer: "D", quote: { total: 1 }, status: "Produksi" },
+  ];
+  const s = storage(JSON.stringify(legacy));
+  assert.deepEqual(
+    readOrders(s).map((o) => o.status),
+    ["Diproses", "Dicek", "Diterima", "Produksi"],
+  );
+  assert.deepEqual(orderStatuses, [
+    "Diproses",
+    "Dicek",
+    "Produksi",
+    "Dikirim",
+    "Diterima",
+  ]);
 });

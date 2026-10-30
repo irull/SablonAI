@@ -139,7 +139,7 @@ export default function SablonApp() {
         "-" +
         crypto.randomUUID().slice(0, 6).toUpperCase(),
       createdAt: new Date().toISOString(),
-      status: "Baru",
+      status: "Diproses",
       color,
       preview,
       artwork,

@@ -86,8 +86,8 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
           <small>tersimpan lokal</small>
         </div>
         <div className="card">
-          <span>Menunggu ditinjau</span>
-          <strong>{orders.filter((o) => o.status === "Baru").length}</strong>
+          <span>Sedang diproses</span>
+          <strong>{orders.filter((o) => o.status === "Diproses").length}</strong>
           <small>siap diperiksa</small>
         </div>
         <div className="card">
