@@ -9,6 +9,7 @@ import {
 } from "../lib/pricing";
 import OptionGroup from "./ui/OptionGroup";
 import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
+import { buildWhatsAppOrderLink } from "../lib/whatsapp";
 
 const MASKING_IMAGES = {
   "10x10": "/assets/masking/sablon-10x10.jpg",
@@ -107,6 +108,7 @@ export default function PricingPanel({
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
     [success, setSuccess] = useState("");
+  const [lastOrder, setLastOrder] = useState(null);
   const product = getProduct(productId);
   const productPriceForSize = (s) => {
     try {
@@ -151,6 +153,7 @@ export default function PricingPanel({
         quote,
       });
       setSuccess("Order " + order.id + " tersimpan di browser ini.");
+      setLastOrder(order);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -389,6 +392,16 @@ export default function PricingPanel({
           <button className="text-button" onClick={onDashboard}>
             Lihat di dashboard →
           </button>
+          {lastOrder && (
+            <a
+              className="text-button"
+              href={buildWhatsAppOrderLink(lastOrder)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Kirim ke toko via WhatsApp →
+            </a>
+          )}
         </div>
       )}
       <div className="production-note">
