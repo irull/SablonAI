@@ -10,6 +10,22 @@ import {
 import { formatRupiah as rp } from "../lib/config";
 import { downloadJSON, orderStatuses } from "../lib/orders";
 
+// Label sablon di dashboard: pakai quote label dulu, karena itu sudah
+// termasuk ukuran cm dan, untuk order baru, orientasi (mis. "20×15 cm
+// (A5, Lanskap)"). ID saja (mis. "A5") hanya fallback untuk order lama.
+function printLabel(order, side) {
+  if (side === "front") {
+    if (order.quote && order.quote.frontPrintLabel)
+      return order.quote.frontPrintLabel;
+    if (order.frontPrintId) return order.frontPrintId;
+    return "-";
+  }
+  if (order.quote && order.quote.backPrintLabel)
+    return order.quote.backPrintLabel;
+  if (order.backPrintId) return order.backPrintId;
+  return "Tanpa sablon";
+}
+
 export default function OrderDashboard({ orders, onStatus, onNew, error }) {
   const [query, setQuery] = useState(""),
     [filter, setFilter] = useState("Semua"),
@@ -75,15 +91,15 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
           <small>siap diperiksa</small>
         </div>
         <div className="card">
-          <span>Total estimasi contoh</span>
+          <span>Total order</span>
           <strong>{rp(orders.reduce((a, o) => a + o.quote.total, 0))}</strong>
-          <small>bukan omzet toko</small>
+          <small>harga toko</small>
         </div>
       </div>
       <p className="notice">
         Dashboard demo lokal, belum memakai akun pemilik atau database. Order
-        hanya muncul di browser dan perangkat ini. Harga masih contoh. Unduh
-        cadangan sebelum menghapus data browser.
+        hanya muncul di browser dan perangkat ini. Harga sudah harga toko.
+        Unduh cadangan sebelum menghapus data browser.
       </p>
       {(error || localError) && (
         <p role="alert" className="error">
@@ -98,7 +114,9 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
               aria-label="Cari nama atau nomor order"
               placeholder="Cari nama atau nomor order…"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+              }}
             />
           </label>
           <select
@@ -138,7 +156,7 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
                 <tr>
                   <th>Order / Pelanggan</th>
                   <th>Kaos & cetak</th>
-                  <th>Estimasi contoh</th>
+                  <th>Harga toko</th>
                   <th>Status</th>
                   <th>Detail</th>
                 </tr>
@@ -164,9 +182,11 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
                       </div>
                     </td>
                     <td>
-                      {o.size} · {o.color.name} · {o.quantity} pcs
+                      {o.product || "Kaos"} · {o.size} · {o.color.name} ·{" "}
+                      {o.quantity} pcs
                       <small>
-                        {o.width} × {o.height} cm · {o.quote.area} cm²
+                        Depan: {printLabel(o, "front")} · Belakang:{" "}
+                        {printLabel(o, "back")}
                       </small>
                     </td>
                     <td>
@@ -220,11 +240,13 @@ export default function OrderDashboard({ orders, onStatus, onNew, error }) {
             <h2 id="order-title">{selected.customer}</h2>
             <img src={selected.preview} alt="Mockup order tersimpan" />
             <p>
-              {selected.size} · {selected.color.name} · {selected.quantity} pcs
-              · cetak {selected.width} × {selected.height} cm
+              {selected.product || "Kaos"} · {selected.size} ·{" "}
+              {selected.color.name} · {selected.quantity} pcs · sablon depan{" "}
+              {printLabel(selected, "front")}, belakang{" "}
+              {printLabel(selected, "back")}
             </p>
             <p className="detail-price">
-              {rp(selected.quote.total)} <small>contoh, belum harga toko</small>
+              {rp(selected.quote.total)} <small>harga toko</small>
             </p>
             <p className="small-note">
               {selected.design.demo

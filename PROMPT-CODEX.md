@@ -66,14 +66,26 @@ Jangan isi angka harga atau format API dengan tebakan. Laporkan apa yang sudah
 siap dan apa yang masih menunggu pemilik, dalam Bahasa Indonesia sederhana.
 ```
 
-### Stage 1 — Mockup 2D + Warna
+### Stage 1 — Mockup 2D + Warna + Headless UI / Tailwind
 
 ```
-Kerjakan Stage 1 SablonAI: foto kaos putih di public/assets/ jadi mockup utama,
-picker warna preset mengubah warna kain (bukan ganti foto), layout mobile rapi
-untuk tab AI Generate / Custom Editor / Dashboard.
+Kerjakan Stage 1 SablonAI, dengan langkah UI dulu sebelum halaman e-commerce
+dibangun: instal Headless UI + Tailwind CSS (sesuaikan versinya dengan
+Next.js/React di proyek ini, cek peer dependencies, jangan asal salin versi
+dari kerangka lain), konfigurasi Tailwind, migrasi globals.css, tetapkan token
+desain bersama, dan buat komponen bersama Button/Card/Input/Badge/Price yang
+dipakai di semua halaman.
+Pakai Headless UI untuk RadioGroup (warna/ukuran/sablon), Dialog (cart/checkout/
+detail/login), Disclosure (menu HP/size chart), Switch (1/2 sisi), Tabs
+(navigasi utama), dan Listbox (filter status) — semua hanya di client component.
+Jangan buat dropdown/modal kustom baru kalau Headless UI sudah menyediakannya,
+dan jangan pakai Headless UI untuk editor fabric.js atau mockup displacement.
+Setelah itu: foto kaos putih di public/assets/ jadi mockup utama, picker warna
+preset (pakai RadioGroup) mengubah warna kain (bukan ganti foto), layout mobile
+rapi untuk tab AI Generate / Custom Editor / Dashboard.
 Kriteria selesai: dibuka di HP, ganti warna langsung berubah, tidak ada layout
-rusak. Jalankan npm run build dan laporkan hasil tesnya.
+rusak, tidak ada dua gaya tombol/kartu yang berbeda, dialog/menu bisa dipakai
+dengan keyboard. Jalankan npm run build dan laporkan hasil tesnya.
 ```
 
 ### Stage 2 — AI Generate: Spark → Image

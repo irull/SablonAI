@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
-  Check,
   ChevronRight,
   CircleHelp,
   ClipboardList,
@@ -17,6 +16,8 @@ import MockupCanvas from "./MockupCanvas";
 import GeneratePanel from "./GeneratePanel";
 import EditorCanvas from "./EditorCanvas";
 import PricingPanel from "./PricingPanel";
+import { orientedDimensions } from "../lib/pricing";
+import ColourGroup from "./ui/ColourGroup";
 import OrderDashboard from "./OrderDashboard";
 import {
   artworkDataURL,
@@ -34,8 +35,24 @@ const tabs = [
 export default function SablonApp() {
   const [tab, setTab] = useState("ai");
   const [color, setColor] = useState(config.colors[0]);
-  const [width, setWidth] = useState(24),
-    [height, setHeight] = useState(30);
+  // Paket 1B: produk, ukuran kaos, dan ukuran sablon tetap menggantikan
+  // lebar/tinggi cetak bebas. Ukuran sablon depan menentukan area cetak
+  // di mockup (tampilan depan); sablon belakang hanya menambah harga.
+  const [productId, setProductId] = useState("kaos-pendek");
+  const [size, setSize] = useState("L");
+  const [frontPrintId, setFrontPrintId] = useState("A4");
+  const [backPrintId, setBackPrintId] = useState(null);
+  const [frontOrientation, setFrontOrientation] = useState("portrait");
+  const [backOrientation, setBackOrientation] = useState("portrait");
+  const frontPrint =
+    config.printSizes.find((p) => p.id === frontPrintId) ||
+    config.printSizes[3];
+  const frontDims = orientedDimensions(frontPrint, frontOrientation) || {
+    wCm: frontPrint.wCm,
+    hCm: frontPrint.hCm,
+  };
+  const frontIsLandscape =
+    frontOrientation === "landscape" && frontPrint.wCm !== frontPrint.hCm;
   const [design, setDesign] = useState({ ...sampleBriefs[0], demo: true });
   const [showArea, setShowArea] = useState(false),
     [help, setHelp] = useState(false),
@@ -43,6 +60,9 @@ export default function SablonApp() {
   const [mode, setMode] = useState(config.demoMode ? "demo" : "live");
   const [editedDesign, setEditedDesign] = useState(null);
   const [editorOpened, setEditorOpened] = useState(false);
+  // Perbaikan 2026-10-28: efek ini harus jalan setiap tab berubah,
+  // bukan hanya saat mount (tab awal 'ai'), kalau tidak EditorCanvas
+  // tidak pernah dipasang dan panel Custom Editor terlihat kosong.
   useEffect(() => {
     if (tab === "editor") setEditorOpened(true);
   }, [tab]);
@@ -80,6 +100,13 @@ export default function SablonApp() {
       window.removeEventListener("keydown", escape);
     };
   }, []);
+  function changeProduct(nextProductId) {
+    setProductId(nextProductId);
+    const nextProduct = config.products.find((p) => p.id === nextProductId);
+    if (nextProduct && !nextProduct.sizes.includes(size)) {
+      setSize(nextProduct.sizes[0]);
+    }
+  }
   async function createOrder(details) {
     if (storageError) throw new Error(storageError);
     if (tab === "editor" && !editor.current?.exportJSON()?.objects?.length)
@@ -175,7 +202,7 @@ export default function SablonApp() {
             <i />
           </a>
           <div className="breadcrumb">
-            Workspace <ChevronRight size={13} />
+            Workspace <ChevronRight size={13} />{" "}
             <strong>Studio desain</strong>
           </div>
           <div className="top-right">
@@ -284,59 +311,40 @@ export default function SablonApp() {
                       : design.image
                   }
                   color={color.hex}
-                  printWidth={width}
-                  printHeight={height}
+                  printWidth={frontDims.wCm}
+                  printHeight={frontDims.hCm}
                   showArea={showArea}
                 />
                 <div className="print-measure">
                   <span />
-                  {width} × {height} cm
+                  {frontDims.wCm} × {frontDims.hCm} cm
+                  {frontIsLandscape ? " (Lanskap)" : ""}
                   <span />
                 </div>
                 <span className="mockup-label">
-                  MOCKUP ILUSTRASI •{" "}
+                  MOCKUP FOTO TOKO •{" "}
                   {design.demo !== false ? "ARTWORK DEMO" : "ARTWORK META AI"}
                 </span>
               </div>
-              <div className="color-section">
-                <div className="section-label">
-                  Warna kaos <strong>{color.name}</strong>
-                </div>
-                <div className="swatches">
-                  {config.colors.map((c) => (
-                    <button
-                      key={c.name}
-                      style={{ "--swatch": c.hex }}
-                      className={
-                        color.name === c.name ? "swatch active" : "swatch"
-                      }
-                      aria-label={"Warna " + c.name}
-                      aria-pressed={color.name === c.name}
-                      onClick={() => setColor(c)}
-                    >
-                      {color.name === c.name && (
-                        <Check
-                          size={16}
-                          color={
-                            c.name === "Putih" || c.name === "Kuning"
-                              ? "#333"
-                              : "#fff"
-                          }
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-                <p className="small-note">
-                  Warna di layar adalah preview, bukan patokan 100% kain asli.
-                </p>
-              </div>
+              <ColourGroup
+                value={color}
+                onChange={setColor}
+                colors={config.colors}
+              />
             </section>
             <PricingPanel
-              width={width}
-              height={height}
-              onWidth={setWidth}
-              onHeight={setHeight}
+              productId={productId}
+              size={size}
+              frontPrintId={frontPrintId}
+              backPrintId={backPrintId}
+              onProduct={changeProduct}
+              onSize={setSize}
+              onFrontPrint={setFrontPrintId}
+              onBackPrint={setBackPrintId}
+              frontOrientation={frontOrientation}
+              backOrientation={backOrientation}
+              onFrontOrientation={setFrontOrientation}
+              onBackOrientation={setBackOrientation}
               onOrder={createOrder}
               onDashboard={() => setTab("dashboard")}
             />
@@ -416,14 +424,14 @@ export default function SablonApp() {
             <h2 id="help-title">Dari cerita jadi kaos.</h2>
             <ol>
               <li>Ceritakan ide atau pilih satu inspirasi.</li>
-              <li>Pilih warna kaos dan ukuran cetak.</li>
+              <li>Pilih produk, warna kaos, dan ukuran sablon.</li>
               <li>Edit gambar dan teks di Custom Editor.</li>
               <li>Masukkan nama dan simpan order demo.</li>
             </ol>
             <p className="notice">
-              Mode demo memakai desain lokal, bukan hasil Meta AI. Foto kaos dan
-              harga masih contoh. Dashboard tersimpan hanya di browser ini,
-              belum terhubung ke toko.
+              Mode demo memakai desain lokal, bukan hasil Meta AI. Foto kaos
+              masih ilustrasi. Harga sudah harga toko. Dashboard tersimpan
+              hanya di browser ini, belum terhubung ke toko.
             </p>
             <button className="primary" onClick={() => setHelp(false)}>
               Mulai berkarya <ArrowRight size={17} />

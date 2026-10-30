@@ -19,6 +19,15 @@ function loadImage(src) {
 const makeCanvas = (w, h) =>
   Object.assign(document.createElement("canvas"), { width: w, height: h });
 
+// Paket 1C: foto asli toko, contain-fit (bukan stretch).
+// Perubahan dari versi ilustrasi: foto + mask TIDAK lagi ditarik paksa
+// ke 800x740. Foto asli itu potret 1184x1722, jadi ditarik paksa akan
+// menggepengkan kaos. Sekarang dipakai contain-fit: foto digambar
+// sesuai proporsi di dalam kanvas 800x740, latar diisi putih, mask
+// digambar di rect yang sama persis, dan area cetak dihitung dari
+// rect itu (tengah horizontal, atas dada = 30% tinggi foto).
+// py lama 222/740 = 0.30, jadi fraksi 0.30 ini konsisten dengan
+// area cetak lama saat foto mengisi penuh tinggi kanvas.
 const MockupCanvas = forwardRef(function MockupCanvas(
   { artwork, color, printWidth, printHeight, showArea },
   ref,
@@ -42,14 +51,23 @@ const MockupCanvas = forwardRef(function MockupCanvas(
     ])
       .then(([photo, mask]) => {
         if (!active) return;
+        const scale = Math.min(800 / photo.width, 740 / photo.height);
+        const drawW = photo.width * scale;
+        const drawH = photo.height * scale;
+        const offsetX = (800 - drawW) / 2;
+        const offsetY = (740 - drawH) / 2;
         const p = makeCanvas(800, 740),
           m = makeCanvas(800, 740);
-        p.getContext("2d").drawImage(photo, 0, 0, 800, 740);
-        m.getContext("2d").drawImage(mask, 0, 0, 800, 740);
+        const pc = p.getContext("2d");
+        pc.fillStyle = "#ffffff";
+        pc.fillRect(0, 0, 800, 740);
+        pc.drawImage(photo, offsetX, offsetY, drawW, drawH);
+        m.getContext("2d").drawImage(mask, offsetX, offsetY, drawW, drawH);
         photoData.current = {
           photo,
           pixels: p.getContext("2d").getImageData(0, 0, 800, 740),
           mask: m.getContext("2d").getImageData(0, 0, 800, 740),
+          rect: { x: offsetX, y: offsetY, w: drawW, h: drawH },
         };
         setReady(true);
       })
@@ -67,10 +85,12 @@ const MockupCanvas = forwardRef(function MockupCanvas(
       try {
         const art = artwork ? await loadImage(artwork) : null;
         if (id !== renderId.current || !canvas.current) return;
-        const { photo, pixels, mask } = photoData.current;
+        const { photo, pixels, mask, rect } = photoData.current;
         const ctx = canvas.current.getContext("2d");
         ctx.clearRect(0, 0, 800, 740);
-        ctx.drawImage(photo, 0, 0);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, 800, 740);
+        ctx.drawImage(photo, rect.x, rect.y, rect.w, rect.h);
         const tint = makeCanvas(800, 740),
           tc = tint.getContext("2d");
         tc.fillStyle = color;
@@ -87,8 +107,8 @@ const MockupCanvas = forwardRef(function MockupCanvas(
         ctx.drawImage(tint, 0, 0);
         const pw = printWidth * 7,
           ph = printHeight * 7;
-        const px = (800 - pw) / 2,
-          py = 222;
+        const px = rect.x + (rect.w - pw) / 2,
+          py = rect.y + rect.h * 0.3;
         if (art) {
           const layer = makeCanvas(800, 740),
             lc = layer.getContext("2d");
@@ -98,8 +118,6 @@ const MockupCanvas = forwardRef(function MockupCanvas(
           lc.drawImage(art, px + (pw - aw) / 2, py + (ph - ah) / 2, aw, ah);
           const original = lc.getImageData(0, 0, 800, 740);
           const displaced = lc.createImageData(800, 740);
-          // Displacement and ink shading are derived from the SAME shirt pixels.
-          // Fixed 800px rendering bounds the cost on phones.
           for (
             let y = Math.max(0, Math.floor(py) - 5);
             y < Math.min(740, py + ph + 5);
@@ -135,7 +153,6 @@ const MockupCanvas = forwardRef(function MockupCanvas(
           }
           lc.putImageData(displaced, 0, 0);
           ctx.drawImage(layer, 0, 0);
-          // A subtle overlay carries highlights over the deposited ink.
           ctx.save();
           ctx.globalCompositeOperation = "overlay";
           ctx.globalAlpha = 0.055;

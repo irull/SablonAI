@@ -5,6 +5,38 @@
 > Tema: **Build for Your World**. Demo harus jalan penuh, bukan cuma video.
 > Stack (keputusan 27 Okt 2026): **Next.js App Router + React, deploy Vercel saja.**
 > Kerangka vanilla lama di `workspace/sablonai/` hanya referensi, jangan di-deploy.
+>
+> ## UPDATE KONSEP 27 Okt 2026 malam — e-commerce + DYO (baca ini dulu)
+> Konsep ini menggantikan gambaran lama yang hanya “2 tampilan”. Detail lengkap
+> ada di `BRIEF-CODEX.md` bagian Update Konsep. Ringkasnya:
+> - Halaman utama = e-commerce: card Kaos Pendek, Kaos Panjang, Hoodie, Totebag,
+>   Kaos Anak (harga Kaos Anak masih TODO), cart, login, Contact Us → WhatsApp.
+> - Halaman DYO = buat mockup sendiri, dengan masking area dari ukuran sablon
+>   yang dipilih (gambar contoh masking akan dikirim pemilik; sementara pakai
+>   kotak proporsional). Generate AI dibatasi: tamu 3x/hari/perangkat, login
+>   10x/hari/akun, ditegakkan di server — lihat BRIEF.
+> - Alur: card/cart/buy → form detail pembeli → order ke dashboard admin →
+>   jalur cepat WhatsApp. DYO selesai → desain ke admin, harga, cart, pembayaran
+>   manual via WhatsApp, proses. Pelacakan client 5 langkah: Diproses → Dicek →
+>   Produksi → Dikirim → Diterima.
+> - Backend HARUS pisahkan desain asli (untuk cetak) vs mockup preview (untuk dilihat).
+> - Harga baru di `lib/config.js` (bukan per-cm²): produk + sablon per sisi.
+>   Contoh: pendek M 50.000 + depan A5 20.000 + belakang A3 40.000 = 110.000.
+> - Prioritas 8–9 hari: P0 e-commerce + DYO + cart + admin + tracking + WhatsApp
+>   + harga baru. P3 yang dicoret kalau P0 belum jalan: 3D, Wonder, payment gateway,
+>   login password/OTP rumit.
+>
+> ## Update data 28 Okt 2026 — masking, size chart, harga anak, WhatsApp
+> - Masking & size chart diterima 28 Okt, disimpan di `public/assets/masking/`
+>   dan `public/assets/size-chart/`, dan sudah masuk `lib/config.js`.
+>   Posisi masking: 10×10 dada kiri, 25×10 dada atas horizontal, A5/A4/A3 tengah
+>   dada vertikal. Size chart dewasa S–4XL dan anak XS–XL tampil di halaman produk.
+> - Kaos Anak: XS–XL Rp 40.000 + Rp 5.000 per kelipatan X (penafsiran di config,
+>   perlu konfirmasi pemilik). WhatsApp toko: 6281290000520. Pembayaran via
+>   WhatsApp disetujui (manual, bukan gateway).
+> - KONFIRMASI 28 Okt 2026: ukuran & harga ikut daftar pertama, gambar hanya
+>   contoh posisi. Final: 10×10, 10×15, A5 15×20, A4 21×28, A3 32×42.
+>   25×10 bukan varian yang dijual. Kaos Anak: XS–XL 40.000, XXL 45.000.
 
 ## Aturan main yang tidak boleh dilanggar
 
@@ -89,17 +121,33 @@ sablonai-nextjs/
 - [ ] Kumpulkan: 1 foto kaos putih + mask, tabel harga toko, 5–10 brief order nyata
       (1 dipilih jadi “bintang demo” — yang teks/logonya jelas).
 - **Kriteria selesai:** repo + Vercel jalan, build lolos, 3 test API kecil berhasil, aset Stage 1 lengkap.
+- **Update 27 Okt malam:** foto mockup sudah diterima (3 PNG transparan, tampak depan dipilih jadi `public/assets/mockup-kaos-putih.jpg` + mask dari alpha channel `mockup-kaos-mask.png`, build tetap lolos); Spend Limit notification sudah disetel Rp 2.700.000; website Codex sudah jalan lokal TAPI belum di-push ke GitHub/Vercel — push + `META_API_KEY` di Vercel Environment Variables masih jadi langkah berikut.
 - **Fallback:** kalau API Meta bermasalah, jangan kejar-kejaran — pakai mode demo
   + desain pre-render untuk UI, sambil laporkan masalah di Discord #questions.
 
 ## Stage 1 — Shell UI + Mockup 2D + Warna (27–28 Okt)
 
-**Tujuan:** customer bisa buka web di HP, pilih warna, lihat mockup.
+**Tujuan:** customer bisa buka web di HP, pilih warna, lihat mockup, dengan UI yang seragam.
+- [ ] **UI dulu, sebelum halaman e-commerce dibangun (keputusan 28 Okt):**
+      instal Headless UI + Tailwind CSS (sesuaikan versi dengan Next.js/React
+      proyek sendiri, lihat BRIEF-CODEX.md bagian Stack), konfigurasi Tailwind,
+      migrasi `globals.css`, tetapkan token desain bersama, dan buat komponen
+      bersama Button/Card/Input/Badge/Price di `components/ui/`.
+      Headless UI dipakai untuk RadioGroup (warna/ukuran/sablon), Dialog (cart/
+      checkout/detail/login), Disclosure (menu HP/size chart), Switch (1/2 sisi),
+      Tabs (navigasi utama), Listbox (filter status). Semua komponen Headless UI
+      hanya di client component. Fabric/editor dan mockup displacement tetap kustom.
 - [ ] Foto kaos putih masuk ke `public/assets/`, tampil sebagai mockup utama.
 - [ ] Picker warna (preset stok toko) mengubah warna kain, bukan ganti foto.
-- [ ] Layout mobile: tab AI Generate / Custom Editor / Dashboard, tombol besar.
-- **Kriteria selesai:** dibuka di HP, ganti warna langsung berubah, tidak ada layout rusak.
+      Picker warna ini pakai RadioGroup Headless UI, bukan tombol kustom baru.
+- [ ] Layout mobile: tab AI Generate / Custom Editor / Dashboard, tombol besar,
+      semua memakai komponen bersama yang sama.
+- **Kriteria selesai:** dibuka di HP, ganti warna langsung berubah, tidak ada layout rusak,
+  `npm run build` lolos setelah instalasi Headless UI + Tailwind, tidak ada dua gaya
+  tombol/kartu yang berbeda, dan dialog/menu bisa dipakai dengan keyboard.
 - **Untuk juri:** ini fondasi Demo & Technical depth — harus mulus sebelum AI masuk.
+  Jangan biarkan refactor UI Stage 1 memakan waktu fitur P0 — kalau UI sudah seragam
+  dan build lolos, lanjut ke Stage 2, jangan polish tanpa henti.
 
 ## Stage 2 — AI Generate: Spark → Image (28–30 Okt)
 
@@ -119,7 +167,12 @@ sablonai-nextjs/
 
 **Tujuan:** customer yang sudah punya desain bisa edit sendiri, background bersih.
 - [ ] fabric.js penuh: upload, tambah teks, geser, perbesar, putar, hapus objek.
+- [ ] Halaman DYO: pilih produk/warna/ukuran, pilih ukuran sablon → masking area
+  di mockup berubah proporsional (gambar contoh masking dari pemilik masih
+  ditunggu; sementara kotak proporsional). Generate AI berlimit (tamu 3x/hari,
+  login 10x/hari, ditegakkan di server).
 - [ ] Tombol hapus background → SAM 3.1 via Route Handler → hasil cut-out masuk ke mockup.
+- [ ] Simpan desain asli TERPISAH dari mockup preview di data order (desain untuk cetak, mockup untuk dilihat).
 - [ ] Displacement map: desain mengikuti lipatan kain + blending Multiply/Overlay.
       Tuning: nilai displace, blur, opacity — dites pakai foto mockup asli, bukan teori.
 - **Kriteria selesai:** upload logo buram → hapus background → tempel di mockup
@@ -127,17 +180,26 @@ sablonai-nextjs/
 - **Risiko:** filter piksel di HP bisa lambat — mitigasi: precompute di resolusi
   tetap (mis. 1024 px), pisahkan layer desain dari foto.
 
-## Stage 4 — Kalkulator Harga + Dashboard Order (1–2 Nov)
+## Stage 4 — Katalog, Kalkulator Harga Baru, Cart & Dashboard Order (1–2 Nov)
 
-**Tujuan:** dari desain jadi order yang bisa diproduksi.
-- [ ] Ganti angka placeholder di `lib/config.js` dengan tabel harga toko nyata:
-  harga kaos per ukuran + harga cetak per cm² + biaya tambahan.
-- [ ] Harga berubah langsung saat ukuran cetak / ukuran kaos diubah.
-- [ ] Order disimpan & tampil di Dashboard pemilik (nama, ukuran, luas cetak, harga,
-  desain). Versi demo lokal dulu, backend penyimpanan permanen hanya kalau sempat
-  tanpa mengorbankan demo.
-- **Kriteria selesai:** bintang demo dihitung harganya dengan benar dan ordernya
-  muncul di dashboard. Angka ini yang dipakai buka/tutup video demo (Impact).
+**Tujuan:** dari desain/produk jadi order yang bisa diproduksi, dengan harga toko nyata.
+- [ ] Harga di `lib/config.js` SUDAH diperbarui 27 Okt malam ke tabel nyata
+  (bukan per-cm²): produk + sablon per sisi, lihat Update Konsep di atas.
+  Verifikasi rumusnya dengan contoh pemilik: pendek M + depan A5 + belakang A3 = 110.000.
+  Kaos Anak masih TODO — jangan dikarang, tanyakan ke pemilik.
+- [ ] Halaman utama e-commerce: card produk, add cart, buy, form detail pembeli.
+- [ ] Cart gabungan: produk jadi + item DYO. Checkout → order ke dashboard admin
+  + tombol WhatsApp (pesan ringkasan order).
+- [ ] Dashboard admin: detail order lengkap (nama, produk, warna, ukuran kaos,
+  ukuran sablon depan/belakang, desain ASLI untuk download, mockup preview terpisah,
+  harga, status 5 langkah, tombol ubah status & WhatsApp).
+- [ ] Pelacakan client: Diproses → Dicek → Produksi → Dikirim → Diterima.
+  Pembayaran demo: manual via WhatsApp, status Menunggu → Dikonfirmasi Admin.
+  BUKAN payment gateway.
+- **Kriteria selesai:** bintang demo + 1 produk jadi dihitung harganya dengan benar,
+  ordernya muncul di dashboard dengan desain asli yang bisa di-download, dan
+  statusnya bisa diubah admin lalu terlihat client. Angka ini yang dipakai
+  buka/tutup video demo (Impact).
 
 ## Stage 5 — BONUS 3D, hanya kalau lolos gerbang (2–3 Nov)
 

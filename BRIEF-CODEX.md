@@ -6,6 +6,133 @@
 > Bahasa kerja: Indonesia untuk penjelasan ke pemilik, kode & komentar boleh
 > Indonesia/Inggris yang jelas. Pemilik BUKAN berlatar IT — jelaskan dengan
 > bahasa sederhana, jangan jargon tanpa penjelasan.
+>
+> ## UPDATE KONSEP 27 Okt 2026 malam — e-commerce + DYO (MENGALAHKAN deskripsi lama)
+>
+> Konsep di bawah ini adalah versi terbaru dari pemilik, dan menggantikan
+> gambaran lama yang hanya “2 tampilan”. Jangan kerjakan versi lama saja.
+> Deadline masih 8–9 hari (sampai 5 Nov 09:00 WIB), pemilik optimis selesai
+> tepat waktu dengan bantuan AI, dan perubahan alur masih boleh karena
+> proyek belum terlalu jauh. Prioritas: demo end-to-end yang jalan, bukan
+> semua fitur sekaligus — lihat urutan P0/P1 di bawah.
+>
+> ### Halaman utama = e-commerce
+> - Card produk jadi yang bisa dipesan langsung: Kaos Lengan Pendek,
+>   Kaos Lengan Panjang, Hoodie, Totebag, Kaos Anak.
+> - Ada cart, login, tombol Contact Us yang langsung terhubung ke WhatsApp.
+> - Alur produk jadi: lihat card → add cart → buy → form detail pembeli →
+>   order masuk dashboard admin. Jalur cepat: order juga bisa diteruskan
+>   ke WhatsApp (pesan berisi ringkasan order).
+>
+> ### Halaman DYO (Do It Yourself) = tempat berkreasi membuat mockup sablon
+> - Client memilih produk, warna, ukuran kaos, lalu memilih ukuran sablon
+>   (lihat harga di bawah). Ukuran sablon itu menentukan masking area di
+>   mockup — kotak area cetak yang dipilih. Pemilik akan kirim gambar contoh
+>   masking; sampai gambar itu datang, pakai kotak proporsional sesuai cm.
+> - Client bisa generate AI, edit manual (upload/teks), atau gabungkan keduanya.
+> - Setelah desain selesai: desain dikirim ke admin (dashboard), harga dihitung,
+>   masuk cart, pembayaran, proses. Lihat bagian “Desain vs Mockup” di bawah.
+>
+> ### Limit generate AI (wajib, supaya token tidak habis)
+> - Rekomendasi yang dipakai (bukan cuma localStorage, karena itu bisa diakali):
+>   **Tamu: 3x generate per hari per perangkat. Setelah login (nama + nomor
+>   WhatsApp): 10x generate per hari per akun.** Batas ditegakkan di server
+>   (Route Handler), dengan counter sederhana per perangkat/akun. Untuk demo
+>   hackathon, counter sederhana ini sudah cukup — catat di laporan bahwa
+>   ini bukan sistem kuota kelas produksi yang anti-curang penuh.
+> - Ide lain yang boleh dipakai sebagai pelengkap, bukan pengganti batas di atas:
+>   (a) tamu hanya bisa lihat produk jadi + DYO manual tanpa AI, AI hanya setelah
+>   login; (b) preview desain tamu diberi watermark / resolusi rendah, file
+>   resolusi penuh hanya setelah order/login; (c) 1 generate dalam antrean
+>   (tidak bisa spam banyak sekaligus), dan prompt yang sama di-cache.
+> - Jangan pakai ide yang membuat demo juri macet: kalau juri harus login dan
+>   tidak ada akun demo, demo gagal. Jadi sediakan akun demo / jalur tamu
+>   yang jelas di video dan di halaman login.
+>
+> ### Cart, pembayaran, dan pelacakan (client)
+> - Cart bisa berisi produk jadi DAN desain DYO (satu cart, beda jenis item).
+> - Pembayaran untuk demo hackathon: **manual via WhatsApp / transfer yang
+>   dikonfirmasi admin** — BUKAN payment gateway. Alasan: gateway butuh
+>   akun, verifikasi, dan biaya, tidak sebanding dengan waktu 8–9 hari.
+>   Status pembayaran: Menunggu Pembayaran → Dikonfirmasi Admin → lanjut produksi.
+>   Kalau pemilik nanti minta gateway sungguhan, itu pekerjaan pasca-hackathon.
+> - Client bisa memantau order dalam 5 langkah saja (hapus langkah yang tidak perlu):
+>   **Diproses → Dicek → Produksi → Dikirim → Diterima.**
+>   “Dicek” = admin memeriksa desain & pembayaran. Tidak ada langkah packing
+>   terpisah, tidak ada langkah lain yang tidak perlu.
+>
+> ### Dashboard admin
+> - Satu order harus menampilkan, dalam satu layar: nama pemesan, produk,
+>   warna kaos, ukuran kaos, desain (file asli, lihat bawah), ukuran sablon
+>   per sisi (depan/belakang), harga per item, total, status, dan tombol
+>   ubah status + tombol WhatsApp ke customer + tombol download desain.
+> - Admin memproses order lewat dashboard ini (ubah status, konfirmasi
+>   pembayaran, download desain untuk dicetak).
+>
+> ### Desain vs Mockup — PENTING, jangan sampai tertukar
+> - Yang dibutuhkan saat mencetak sablon adalah **DESAINNYA, bukan mockupnya**.
+>   Backend / data order HARUS memisahkan keduanya:
+>   - `designUrl` / file desain asli: PNG transparan resolusi tinggi, file yang
+>     akan dicetak. Inilah yang di-download admin.
+>   - `mockupUrl` / preview: foto kaos + desain yang ditempel (untuk dilihat
+>     customer). Ini TIDAK boleh dipakai untuk cetak.
+> - Setiap order DYO menyimpan keduanya, plus: produk, warna, ukuran kaos,
+>   ukuran sablon depan, ukuran sablon belakang, dan harga.
+> - Kalau desain hanya ada di mockup (sudah menyatu dengan foto kaos), itu
+>   SALAH dan tidak bisa dicetak — laporkan sebagai bug, jangan dibiarkan.
+>
+> ### Harga nyata (27 Okt malam, menggantikan harga per cm²)
+> - Produk: Kaos Lengan Pendek S,M,L,XL Rp 50.000, XXL Rp 60.000
+>   (tiap tambahan X di atas XL +Rp 10.000). Kaos Lengan Panjang S,M,L,XL
+>   Rp 60.000, XXL Rp 70.000 (aturan X yang sama). Hoodie All Size Rp 100.000.
+>   Totebag 1 ukuran Rp 25.000. Kaos Anak: HARGA BELUM DIBERIKAN — jangan
+>   dikarang, tandai TODO di `lib/config.js` dan tanyakan ke pemilik.
+> - Sablon (per sisi): 10×10 cm Rp 10.000; 10×15 cm Rp 15.000;
+>   15×20 cm (A5) Rp 20.000; 21×28 cm (A4) Rp 30.000; 32×42 cm (A3) Rp 40.000.
+> - Total = harga produk + sablon depan + sablon belakang.
+>   Contoh pemilik: kaos pendek M (50.000) + depan A5 (20.000) + belakang A3
+>   (40.000) = Rp 110.000. Kalau hanya 1 sisi, sisi lainnya Rp 0.
+> - Harga-harga ini sudah ada di `lib/config.js` baru. Jangan kembali ke
+>   model per-cm² tanpa persetujuan pemilik.
+>
+> ### Urutan prioritas untuk 8–9 hari (P0 dulu, P2/P3 boleh dicoret)
+> - **P0 (wajib demo):** halaman utama e-commerce + card produk, cart,
+>   checkout form detail pembeli, DYO dengan masking + generate berlimit,
+>   desain vs mockup terpisah, admin dashboard + ubah status, pelacakan 5 langkah,
+>   tombol WhatsApp, harga baru yang benar.
+> - **P1 (penting, kerjakan setelah P0 jalan):** login sederhana (nama + nomor
+>   WhatsApp, untuk limit generate & pelacakan), sablon 2 sisi, produk jadi
+>   langsung pesan tanpa DYO.
+> - **P2 (kalau sempat):** konfirmasi pembayaran admin, akun demo untuk juri.
+> - **P3 / DICORET kalau P0 belum jalan:** 3D, Muse Wonder, payment gateway,
+>   login password/OTP yang rumit, database permanen yang kompleks.
+>
+> ### Update data 28 Okt 2026 — masking, size chart, harga anak, WhatsApp, pembayaran
+> - Gambar contoh masking DITERIMA 28 Okt (disimpan di
+>   `public/assets/masking/`): A5, A4, A3, 10×10, 25×10. Posisi dari gambar:
+>   10×10 = dada kiri kecil; 25×10 = dada atas horizontal tengah;
+>   A5/A4/A3 = tengah dada vertikal, makin besar makin luas.
+> - Size chart DITERIMA 28 Okt (`public/assets/size-chart/`): dewasa
+>   S–4XL (Lebar 47–62, Panjang 66–81, Lengan 21–26, toleransi 1–2 cm);
+>   anak XS–XL (Lebar 33–43, Panjang 45–58). Tampilkan tabel ini di halaman produk.
+> - Harga Kaos Anak DITERIMA: XS,S,M,L,XL Rp 40.000 + Rp 5.000 per kelipatan X.
+>   Penafsiran di `lib/config.js`: XS–XL = 40.000, tiap X di atas XL +5.000.
+>   Kalau maksud pemilik berbeda, koreksi config, jangan diam-diam pakai tafsir lain.
+> - Nomor WhatsApp toko DITERIMA: 6281290000520. Pembayaran via WhatsApp
+>   DISETUJUI pemilik — manual/transfer dikonfirmasi admin, bukan payment gateway.
+> - KONFIRMASI UKURAN 28 Okt 2026 — SUDAH DISELESAIKAN, tidak lagi menunggu:
+>   Pemilik: “1,2,3 ikut ukuran pertama, dengan contoh masking seperti gambar.”
+>   Artinya ukuran & harga ikut daftar pertama, gambar hanya contoh posisi.
+>   Final: 10×10 Rp 10.000, 10×15 Rp 15.000, A5 15×20 Rp 20.000,
+>   A4 21×28 Rp 30.000, A3 32×42 Rp 40.000. Label cm di file gambar masking
+>   (A5 14×21, A3 28×42) DIABAIKAN untuk ukuran. File 25×10 BUKAN varian
+>   yang dijual — hanya referensi posisi dada atas untuk 10×15.
+> - Harga Kaos Anak DIKONFIRMASI 28 Okt 2026: “betul XXL jadi 45rb.”
+>   Final: XS–XL Rp 40.000, XXL Rp 45.000.
+>
+> ### Yang masih menunggu pemilik (jangan dikarang, jangan diblokir total)
+> - Tidak ada lagi untuk ukuran & harga di atas — semua sudah final di
+>   `lib/config.js`. Yang tersisa hanya aset/fitur lain di luar bagian ini.
 
 ## 1. Siapa pemilik & masalahnya (baca dulu, ini yang dinilai juri)
 
@@ -45,14 +172,13 @@
      Hijau Tua, Kuning — bisa diubah di `lib/config.js`). Warna diganti dari app,
      BUKAN dengan foto banyak warna. Warna di layar adalah preview, bukan patokan
      100% kain asli — tulis keterangan ini di UI.
-4. **Kalkulator harga instan**
-   - Rumus: harga kaos per ukuran + (lebar cm × tinggi cm × harga cetak per cm²)
-     + biaya tambahan. Harga berubah langsung saat ukuran/ukuran cetak diubah.
-   - Angka di kerangka masih PLACEHOLDER — jangan dikarang jadi harga final.
-     Minta tabel harga nyata ke pemilik di Stage 4, atau pakai placeholder dengan
-     label jelas “contoh, belum harga toko”.
-5. **Dashboard Order (pemilik)**
-   - Daftar order: nama customer, ukuran kaos, ukuran cetak, harga, desain.
+4. **Kalkulator harga instan — LIHAT UPDATE KONSEP di atas, model per-cm² SUDAH TIDAK BERLAKU**
+   - Rumus baru: harga produk + sablon depan + sablon belakang, dengan tabel
+     harga tetap di bagian Update Konsep dan di `lib/config.js`.
+   - Harga berubah langsung saat produk/ukuran/ukuran sablon diubah.
+5. **Dashboard Order (pemilik) — LIHAT UPDATE KONSEP di atas**
+   - Daftar order + detail lengkap per order + ubah status 5 langkah +
+     download DESAIN ASLI (bukan mockup) + tombol WhatsApp.
    - Versi awal boleh simpan lokal (localStorage) untuk demo. Penyimpanan permanen
      (database) hanya kalau sempat TANPA mengorbankan demo end-to-end.
 6. **Biaya API per order (nilai tambah, bukan wajib mutlak)**
@@ -64,6 +190,43 @@
 
 - **Framework: Next.js App Router + React, JavaScript (bukan TypeScript).**
   Alasan: deploy Vercel paling mulus, API route menyatu dengan frontend.
+- **UI — DIPUTUSKAN pemilik 28 Okt 2026: Headless UI + Tailwind CSS, ditambahkan di Stage 1.**
+  Headless UI (https://headlessui.com/) adalah komponen React tanpa gaya visual
+  dari pembuat Tailwind, dengan aksesibilitas bawaan (keyboard, fokus, ARIA).
+  Headless UI SAJA tidak membuat tampilan seragam — seragam didapat dari
+  komponen yang sama + token desain yang sama di bawah ini. Jangan instal
+  Headless UI tanpa Tailwind / tanpa token, karena hasilnya akan tetap acak.
+  - Instalasi (Codex SESUAIKAN dengan versi proyeknya sendiri, jangan asal salin):
+    `npm install @headlessui/react`, plus Tailwind + PostCSS + Autoprefixer
+    sesuai versi Next.js/React di proyek itu, lalu konfigurasi Tailwind
+    (content mencakup app/ dan components/) dan migrasi `globals.css` ke
+    Tailwind. Cek peer dependencies Headless UI terhadap React di proyek
+    (kerangka di sini Next 14 / React 18; proyek Codex di laptop dilaporkan
+    Next 16 / React 19 — versinya boleh beda, yang penting `npm run build` lolos).
+  - Semua komponen Headless UI adalah client component — pakai hanya di file
+    `"use client"`, jangan di server component (aturan yang sama seperti fabric.js).
+  - Token desain yang harus dipakai di SEMUA halaman (jangan tiap halaman
+    mengarang warna/radius sendiri): 1 warna utama toko yang konsisten untuk
+    tombol utama, 1 warna sekunder untuk tombol biasa, radius yang sama untuk
+    tombol/kartu/input, jarak dan ukuran teks yang sama untuk judul, label,
+    dan harga. Tulis token ini di konfigurasi Tailwind / CSS bersama, dan
+    jangan hardcode warna berbeda di tiap halaman.
+  - Komponen bersama yang wajib dibuat di `components/ui/` (atau setara) dan
+    dipakai ulang, bukan dibuat ulang per halaman: Button, Card, Input, Badge
+    (status order), Price (format Rp yang sama).
+  - Pemetaan Headless UI ke SablonAI (wajib, jangan buat dropdown/modal kustom
+    baru kalau Headless UI sudah menyediakannya):
+    - RadioGroup → pilih warna kaos, ukuran kaos, ukuran sablon
+    - Listbox → pilih/filter (mis. filter status order di dashboard admin)
+    - Dialog → cart (drawer/modal), form checkout, detail order, login, preview desain
+    - Disclosure → menu HP, accordion size chart
+    - Switch → sablon 1 sisi / 2 sisi
+    - Tabs → navigasi utama (Beranda / DYO / Cart / Dashboard / Lacak)
+  - TIDAK pakai Headless UI untuk: editor fabric.js dan mockup displacement —
+    itu tetap kustom.
+  - Kriteria selesai Stage 1 untuk UI: build lolos, semua halaman memakai
+    komponen bersama di atas, tidak ada dua gaya tombol/kartu yang berbeda,
+    dan dialog/menu bisa dipakai dengan keyboard di HP maupun laptop.
 - **Deploy: Vercel saja untuk demo utama.** Repo GitHub harus PUBLIK saat submit.
   GitHub Pages TIDAK dipakai sebagai demo utama (Pages tidak bisa menjalankan
   API route, dan dua link demo membingungkan juri). Pages hanya cadangan.

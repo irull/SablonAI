@@ -1,0 +1,8 @@
+/* Stage 1: Tailwind v3 utilities + components only.
+   @tailwind base (preflight) sengaja TIDAK dipakai dulu, karena
+   app/globals.css yang sudah ada (1756 baris) sudah berisi reset
+   sendiri (box-sizing, margin body/h/p, button, focus outline).
+   Menambah preflight sekarang berisiko mengubah tampilan yang
+   sudah lolos build. Token warna/font ada di tailwind.config.js. */
+@tailwind components;
+@tailwind utilities;

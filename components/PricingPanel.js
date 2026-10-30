@@ -1,24 +1,56 @@
 "use client";
 import { useState } from "react";
-import { ArrowRight, CheckCheck, LoaderCircle, Shirt, X } from "lucide-react";
+import { ArrowRight, CheckCheck, LoaderCircle, Shirt } from "lucide-react";
 import { config, formatRupiah as rp } from "../lib/config";
-import { calculatePrice } from "../lib/pricing";
+import {
+  calculatePrice,
+  getProduct,
+  productPrice,
+} from "../lib/pricing";
+import OptionGroup from "./ui/OptionGroup";
 
 export default function PricingPanel({
-  width,
-  height,
-  onWidth,
-  onHeight,
+  productId,
+  size,
+  frontPrintId,
+  backPrintId,
+  onProduct,
+  onSize,
+  onFrontPrint,
+  onBackPrint,
+  frontOrientation = "portrait",
+  backOrientation = "portrait",
+  onFrontOrientation,
+  onBackOrientation,
   onOrder,
   onDashboard,
 }) {
-  const [size, setSize] = useState("L"),
-    [quantity, setQuantity] = useState(1),
+  const [quantity, setQuantity] = useState(1),
     [customer, setCustomer] = useState(""),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
     [success, setSuccess] = useState("");
-  const quote = calculatePrice({ size, width, height, quantity });
+  const product = getProduct(productId);
+  const productPriceForSize = (s) => {
+    try {
+      return productPrice(product, s);
+    } catch {
+      return product.basePrice;
+    }
+  };
+  const quote = calculatePrice({
+    productId,
+    size,
+    frontPrintId,
+    backPrintId,
+    frontOrientation,
+    backOrientation,
+    quantity,
+  });
+  const frontPrint = config.printSizes.find((p) => p.id === frontPrintId);
+  const backPrint = backPrintId
+    ? config.printSizes.find((p) => p.id === backPrintId)
+    : null;
   async function save(e) {
     e.preventDefault();
     setError("");
@@ -30,9 +62,13 @@ export default function PricingPanel({
     setSaving(true);
     try {
       const order = await onOrder({
+        productId,
+        product: product.name,
         size,
-        width,
-        height,
+        frontPrintId,
+        backPrintId,
+        frontOrientation,
+        backOrientation,
         quantity,
         customer: customer.trim(),
         quote,
@@ -55,66 +91,123 @@ export default function PricingPanel({
           <p>Pas di badan, pas di kantong.</p>
         </div>
       </div>
-      <div className="field-label" id="size-label">
-        Ukuran kaos
-      </div>
-      <div className="size-picker" role="group" aria-labelledby="size-label">
-        {Object.keys(config.shirtPrices).map((s) => (
-          <button
-            key={s}
-            className={size === s ? "active" : ""}
-            aria-pressed={size === s}
-            onClick={() => {
-              setSize(s);
-              setSuccess("");
-            }}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-      <div className="section-label spaced">
-        Ukuran cetak <span>maks. 32 × 45 cm</span>
-      </div>
-      <div className="dimension-fields">
-        <label>
-          Lebar{" "}
-          <span>
-            <input
-              aria-label="Lebar cetak"
-              type="number"
-              min="1"
-              max="32"
-              step="0.5"
-              value={width}
-              onChange={(e) => {
-                onWidth(Math.max(1, Math.min(32, +e.target.value || 1)));
-                setSuccess("");
-              }}
-            />
-            cm
-          </span>
-        </label>
-        <X size={13} />
-        <label>
-          Tinggi{" "}
-          <span>
-            <input
-              aria-label="Tinggi cetak"
-              type="number"
-              min="1"
-              max="45"
-              step="0.5"
-              value={height}
-              onChange={(e) => {
-                onHeight(Math.max(1, Math.min(45, +e.target.value || 1)));
-                setSuccess("");
-              }}
-            />
-            cm
-          </span>
-        </label>
-      </div>
+      <OptionGroup
+        label="1 · Produk"
+        value={productId}
+        onChange={(v) => {
+          onProduct(v);
+          setSuccess("");
+        }}
+        options={config.products.map((p) => ({
+          value: p.id,
+          label: `${p.name} — ${rp(p.basePrice)}`,
+        }))}
+      />
+      <OptionGroup
+        label="2 · Ukuran kaos"
+        value={size}
+        onChange={(v) => {
+          onSize(v);
+          setSuccess("");
+        }}
+        options={product.sizes.map((s) => ({
+          value: s,
+          label:
+            product.sizes.length === 1
+              ? s
+              : `${s} — ${rp(productPriceForSize(s))}`,
+        }))}
+      />
+      <OptionGroup
+        label="3 · Sablon depan"
+        value={frontPrintId}
+        onChange={(v) => {
+          onFrontPrint(v);
+          setSuccess("");
+        }}
+        options={config.printSizes.map((p) => ({
+          value: p.id,
+          label: `${p.label} — ${rp(p.price)}`,
+        }))}
+      />
+      {frontPrint && frontPrint.wCm === frontPrint.hCm ? (
+        <p className="small-note">
+          Kotak {frontPrint.wCm}×{frontPrint.hCm} cm — orientasi tidak
+          berpengaruh.
+        </p>
+      ) : (
+        <OptionGroup
+          label="Orientasi sablon depan"
+          value={frontOrientation}
+          onChange={(v) => {
+            onFrontOrientation(v);
+            setSuccess("");
+          }}
+          options={
+            frontPrint
+              ? [
+                  {
+                    value: "portrait",
+                    label: `Potret ${frontPrint.wCm}×${frontPrint.hCm} cm`,
+                  },
+                  {
+                    value: "landscape",
+                    label: `Lanskap ${frontPrint.hCm}×${frontPrint.wCm} cm`,
+                  },
+                ]
+              : []
+          }
+        />
+      )}
+      <p className="small-note">
+        Dipakai di mockup: {quote.frontPrintLabel} — {rp(quote.front)}.
+        Harga tidak berubah antara potret dan lanskap.
+      </p>
+      <OptionGroup
+        label="4 · Sablon belakang"
+        value={backPrintId}
+        onChange={(v) => {
+          onBackPrint(v);
+          setSuccess("");
+        }}
+        options={[
+          { value: null, label: "Tanpa sablon — Rp0" },
+          ...config.printSizes.map((p) => ({
+            value: p.id,
+            label: `${p.label} — ${rp(p.price)}`,
+          })),
+        ]}
+      />
+      {backPrint && backPrint.wCm === backPrint.hCm ? (
+        <p className="small-note">
+          Kotak {backPrint.wCm}×{backPrint.hCm} cm — orientasi tidak
+          berpengaruh.
+        </p>
+      ) : backPrint ? (
+        <OptionGroup
+          label="Orientasi sablon belakang"
+          value={backOrientation}
+          onChange={(v) => {
+            onBackOrientation(v);
+            setSuccess("");
+          }}
+          options={[
+            {
+              value: "portrait",
+              label: `Potret ${backPrint.wCm}×${backPrint.hCm} cm`,
+            },
+            {
+              value: "landscape",
+              label: `Lanskap ${backPrint.hCm}×${backPrint.wCm} cm`,
+            },
+          ]}
+        />
+      ) : null}
+      {backPrint && (
+        <p className="small-note">
+          Untuk belakang: {quote.backPrintLabel} — {rp(quote.back)}.
+        </p>
+      )}
       <div className="quantity-field">
         <label htmlFor="quantity" className="field-label">
           Jumlah kaos
@@ -142,20 +235,24 @@ export default function PricingPanel({
         <span className="price-caption">
           {config.pricingIsExample
             ? "Contoh, belum harga toko"
-            : "Estimasi, dikonfirmasi toko"}
+            : "Harga toko"}
         </span>
         <dl className="price-breakdown">
           <div>
-            <dt>Kaos {size}</dt>
+            <dt>
+              {product.name} {size}
+            </dt>
             <dd>{rp(quote.shirt)}</dd>
           </div>
           <div>
-            <dt>Cetak {quote.area} cm²</dt>
-            <dd>{rp(quote.print)}</dd>
+            <dt>Sablon depan {frontPrint ? frontPrint.label : ""}</dt>
+            <dd>{rp(quote.front)}</dd>
           </div>
           <div>
-            <dt>Tambahan / kaos</dt>
-            <dd>{rp(quote.extra)}</dd>
+            <dt>
+              Sablon belakang {backPrint ? backPrint.label : "(tanpa sablon)"}
+            </dt>
+            <dd>{rp(quote.back)}</dd>
           </div>
           <div className="unit-price">
             <dt>Per kaos</dt>
