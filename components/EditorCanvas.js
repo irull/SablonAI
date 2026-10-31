@@ -99,6 +99,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     onChangeRef = useRef(onChange),
     timer = useRef(null);
   const generation = useRef(0);
+  const lastEmit = useRef(null);
   const [ready, setReady] = useState(false),
     [selected, setSelected] = useState(false),
     [busy, setBusy] = useState(""),
@@ -133,7 +134,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       const url = capturePNG();
-      if (url) onChangeRef.current(url);
+      if (url) {
+        lastEmit.current = url;
+        onChangeRef.current(url);
+      }
     }, 100);
   }, []);
   function applyZoom(z) {
@@ -455,6 +459,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [emit]);
   useEffect(() => {
     if (!ready || !initialImage) return;
+    if (initialImage === lastEmit.current) return;
     const current = ++generation.current;
     fabric.current.FabricImage.fromURL(initialImage)
       .then((img) => {
