@@ -286,24 +286,6 @@ export default function SablonApp() {
               </div>
             </div>
           </section>
-          <div className="studio-navigation">
-            <nav aria-label={tr("studioNavLabel")}>
-              {tabs.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  aria-current={tab === t.id ? "page" : undefined}
-                  className={tab === t.id ? "tab active" : "tab"}
-                >
-                  <t.icon size={17} />
-                  {tr(t.labelKey)}
-                </button>
-              ))}
-            </nav>
-            <span className="saved-indicator">
-              <span /> {tr("savedWorkspace")}
-            </span>
-          </div>
           <div className="studio-grid" hidden={tab === "dashboard" || tab === "katalog" || tab === "lacak"}>
             <div className="design-tools">
               <div hidden={tab !== "ai"}>
