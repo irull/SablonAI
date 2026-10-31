@@ -5,7 +5,7 @@ import { translate } from "../lib/i18n";
 
 // Area desain pada tekstur panel depan model (fraksi 0-1, y dari atas).
 // Bila posisi desain terlihat meleset, ubah angka ini saja.
-const PRINT_RECT = { x: 0.24, y: 0.13, w: 0.52, h: 0.46 };
+const PRINT_RECT = { x: 0.18, y: 0.06, w: 0.64, h: 0.62 };
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
 
@@ -71,6 +71,7 @@ export default function ShirtViewer3D({ artwork, color, t }) {
           camera,
           controls,
           printMat: null,
+          origMap: null,
           fabricMats: [],
           home: null,
           tex: null,
@@ -88,7 +89,10 @@ export default function ShirtViewer3D({ artwork, color, t }) {
           mats.forEach((m) => {
             if (!m || seen.has(m.uuid)) return;
             seen.add(m.uuid);
-            if ((m.name || "").startsWith("PT_FABRIC")) w.printMat = m;
+            if ((m.name || "").startsWith("PT_FABRIC")) {
+              w.printMat = m;
+              w.origMap = m.map || null;
+            }
             else if ("color" in m) w.fabricMats.push(m);
           });
         });
@@ -166,8 +170,6 @@ export default function ShirtViewer3D({ artwork, color, t }) {
       canvas.width = TEX_SIZE;
       canvas.height = TEX_SIZE;
       const cx = canvas.getContext("2d");
-      cx.fillStyle = colorRef.current || "#f2f0e8";
-      cx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
       const rx = PRINT_RECT.x * TEX_SIZE;
       const ry = PRINT_RECT.y * TEX_SIZE;
       const rw = PRINT_RECT.w * TEX_SIZE;
@@ -180,13 +182,24 @@ export default function ShirtViewer3D({ artwork, color, t }) {
       tex.flipY = false;
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
+      const orig = w.origMap;
+      if (orig) {
+        tex.repeat.copy(orig.repeat);
+        tex.offset.copy(orig.offset);
+        tex.center.copy(orig.center);
+        tex.rotation = orig.rotation;
+        tex.wrapS = orig.wrapS;
+        tex.wrapT = orig.wrapT;
+        tex.matrixAutoUpdate = orig.matrixAutoUpdate;
+        if (!tex.matrixAutoUpdate) tex.matrix.copy(orig.matrix);
+      }
       if (w.tex) w.tex.dispose();
       w.tex = tex;
       w.printMat.map = tex;
       w.printMat.color.set("#ffffff");
-      w.printMat.transparent = false;
       w.printMat.needsUpdate = true;
     };
+    img.onerror = () => {};
     img.src = artworkRef.current;
   }
 
