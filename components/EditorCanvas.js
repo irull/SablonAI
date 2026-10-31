@@ -30,6 +30,36 @@ import {
 import { metaRequest } from "../lib/api";
 import { translate } from "../lib/i18n";
 
+const FONTS = [
+  "Arial",
+  "Anton",
+  "Bebas Neue",
+  "Dancing Script",
+  "Lobster",
+  "Montserrat",
+  "Oswald",
+  "Pacifico",
+  "Playfair Display",
+  "Poppins",
+];
+const CLIPARTS = [
+  { id: "sun", label: "Sun", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="19" fill="#F5A623"/><g stroke="#F5A623" stroke-width="6" stroke-linecap="round"><line x1="50" y1="8" x2="50" y2="20"/><line x1="50" y1="80" x2="50" y2="92"/><line x1="8" y1="50" x2="20" y2="50"/><line x1="80" y1="50" x2="92" y2="50"/><line x1="20" y1="20" x2="28" y2="28"/><line x1="72" y1="72" x2="80" y2="80"/><line x1="80" y1="20" x2="72" y2="28"/><line x1="28" y1="72" x2="20" y2="80"/></g></svg>' },
+  { id: "heart", label: "Heart", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 86 C20 62 8 44 8 29 C8 15 18 6 30 6 C40 6 47 12 50 20 C53 12 60 6 70 6 C82 6 92 15 92 29 C92 44 80 62 50 86Z" fill="#E5484D"/></svg>' },
+  { id: "star", label: "Star", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,4 61,38 98,38 68,59 79,93 50,71 21,93 32,59 2,38 39,38" fill="#FFC53D" stroke="#E8A100" stroke-width="2"/></svg>' },
+  { id: "bolt", label: "Bolt", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="56,2 20,56 43,56 37,98 82,40 56,40" fill="#FFD60A" stroke="#E0A800" stroke-width="2"/></svg>' },
+  { id: "leaf", label: "Leaf", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M84 14 C40 18 18 42 15 86 C56 84 80 58 84 14Z" fill="#3E9B4F"/><path d="M22 80 C38 56 58 36 78 22" stroke="#2C7039" stroke-width="4" fill="none" stroke-linecap="round"/></svg>' },
+  { id: "flame", label: "Flame", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 3 C58 22 77 34 77 58 A27 27 0 1 1 23 58 C23 44 31 33 38 23 C40 33 44 39 48 44 C46 29 46 15 50 3Z" fill="#F76B15"/></svg>' },
+  { id: "crown", label: "Crown", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="8,74 8,30 31,50 50,22 69,50 92,30 92,74" fill="#FFC53D" stroke="#E8A100" stroke-width="2"/><rect x="8" y="78" width="84" height="9" rx="3" fill="#E8A100"/></svg>' },
+  { id: "smile", label: "Smile", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#FFD60A"/><circle cx="35" cy="42" r="5" fill="#333"/><circle cx="65" cy="42" r="5" fill="#333"/><path d="M30 62 C38 74 62 74 70 62" stroke="#333" stroke-width="5" fill="none" stroke-linecap="round"/></svg>' },
+];
+const TEMPLATES = [
+  { id: "komunitas", name: "Komunitas", title: "GOWES PAGI", sub: "KOMUNITAS SEPEDA", font: "Bebas Neue", color: "#101460", clip: "sun" },
+  { id: "usaha", name: "Usaha Lokal", title: "Kopi Dulu", sub: "NGOPI - SANTAI - ULANGI", font: "Dancing Script", color: "#7A4A21", clip: "heart" },
+  { id: "sport", name: "Sport", title: "NO PAIN", sub: "NO GLORY", font: "Anton", color: "#3442CA", clip: "bolt" },
+  { id: "vintage", name: "Vintage", title: "Sejak 1998", sub: "ORIGINAL - CLASSIC", font: "Playfair Display", color: "#354E40", clip: "crown" },
+];
+const SHAPE_IDS = ["rect", "circle", "triangle", "star", "heart", "line"];
+
 const readImage = (src, errMsg = "Gambar gagal dibaca.") =>
   new Promise((resolve, reject) => {
     const im = new Image();
@@ -80,6 +110,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [zoom, setZoomState] = useState(1),
     [layers, setLayers] = useState([]),
     [hist, setHist] = useState({ u: 0, r: 0 });
+  const [font, setFont] = useState("Arial"),
+    [objProps, setObjProps] = useState(null);
   const zoomRef = useRef(1),
     undoStack = useRef([]),
     redoStack = useRef([]),
@@ -228,6 +260,138 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     refreshLayers(c);
     emit();
   }
+  function readProps(c) {
+    const o = c?.getActiveObject();
+    if (!o) return null;
+    return {
+      isText: ["textbox", "i-text", "text"].includes(o.type),
+      charSpacing: o.charSpacing || 0,
+      strokeWidth: o.strokeWidth || 0,
+      opacity: Math.round((o.opacity == null ? 1 : o.opacity) * 100),
+    };
+  }
+  function applyProp(key, value) {
+    const c = canvas.current,
+      o = c?.getActiveObject();
+    if (!o) return;
+    if (key === "opacity") o.set("opacity", value / 100);
+    else if (key === "charSpacing") o.set("charSpacing", value);
+    else if (key === "strokeWidth")
+      o.set({
+        strokeWidth: value,
+        stroke: value > 0 ? o.fill || "#101460" : o.stroke,
+      });
+    o.setCoords();
+    c.requestRenderAll();
+    setObjProps(readProps(c));
+    emit();
+  }
+  function starPoints(spikes, outer, inner) {
+    const pts = [{ x: 0, y: -outer }];
+    let rot = (Math.PI / 2) * 3;
+    const step = Math.PI / spikes;
+    for (let i = 0; i < spikes; i++) {
+      rot += step;
+      pts.push({ x: Math.cos(rot) * inner, y: Math.sin(rot) * inner });
+      rot += step;
+      pts.push({ x: Math.cos(rot) * outer, y: Math.sin(rot) * outer });
+    }
+    return pts;
+  }
+  function finishAdd(obj) {
+    const c = canvas.current;
+    c.add(obj);
+    obj.center();
+    obj.setCoords();
+    c.setActiveObject(obj);
+    c.requestRenderAll();
+    emit();
+  }
+  function addShape(kind) {
+    if (!ready || !fabric.current) return;
+    const f = fabric.current;
+    const base = {
+      fill: textColor,
+      cornerColor: "#3442CA",
+      borderColor: "#3442CA",
+      transparentCorners: false,
+    };
+    let obj = null;
+    if (kind === "rect")
+      obj = new f.Rect({ ...base, width: 220, height: 150, rx: 14, ry: 14 });
+    else if (kind === "circle") obj = new f.Circle({ ...base, radius: 95 });
+    else if (kind === "triangle")
+      obj = new f.Triangle({ ...base, width: 210, height: 180 });
+    else if (kind === "star")
+      obj = new f.Polygon(starPoints(5, 110, 48), base);
+    else if (kind === "heart")
+      obj = new f.Path(
+        "M 100 170 C 20 120 0 85 0 55 C 0 22 22 0 48 0 C 70 0 90 12 100 32 C 110 12 130 0 152 0 C 178 0 200 22 200 55 C 200 85 180 120 100 170 Z",
+        base,
+      );
+    else if (kind === "line")
+      obj = new f.Line([0, 0, 280, 0], {
+        ...base,
+        fill: undefined,
+        stroke: textColor,
+        strokeWidth: 10,
+      });
+    if (obj) finishAdd(obj);
+  }
+  function addClipart(item, dy = 0) {
+    if (!ready || !fabric.current) return;
+    fabric.current
+      .loadSVGFromString(item.svg)
+      .then(({ objects, options }) => {
+        const c = canvas.current;
+        if (!c) return;
+        const grp = fabric.current.util.groupSVGElements(objects, options);
+        grp.scaleToWidth(180);
+        grp.set({ cornerColor: "#3442CA", borderColor: "#3442CA", transparentCorners: false });
+        c.add(grp);
+        grp.center();
+        if (dy) grp.set("top", grp.top + dy);
+        grp.setCoords();
+        c.setActiveObject(grp);
+        c.requestRenderAll();
+        emit();
+      })
+      .catch(() => setError(tr("errImageRead")));
+  }
+  function applyTemplate(tpl) {
+    if (!ready || !fabric.current) return;
+    const f = fabric.current,
+      c = canvas.current;
+    const clip = CLIPARTS.find((x) => x.id === tpl.clip);
+    if (clip) addClipart(clip, -175);
+    const title = new f.Textbox(tpl.title, {
+      width: 500,
+      fontSize: 66,
+      fontFamily: tpl.font,
+      fontWeight: "bold",
+      fill: tpl.color,
+      textAlign: "center",
+    });
+    c.add(title);
+    title.center();
+    title.set("top", 318);
+    title.setCoords();
+    const sub = new f.Textbox(tpl.sub, {
+      width: 500,
+      fontSize: 29,
+      fontFamily: "Montserrat",
+      charSpacing: 150,
+      fill: tpl.color,
+      textAlign: "center",
+    });
+    c.add(sub);
+    sub.center();
+    sub.set("top", 414);
+    sub.setCoords();
+    c.setActiveObject(title);
+    c.requestRenderAll();
+    emit();
+  }
   useImperativeHandle(ref, () => ({
     exportJSON: () => canvas.current?.toObject(),
     exportPNG: () => capturePNG(),
@@ -251,8 +415,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         instance.on("object:added", emit);
         instance.on("object:removed", emit);
         instance.on("text:changed", emit);
-        const selection = () =>
-          setSelected(Boolean(instance.getActiveObject()));
+        const selection = () => {
+          const o = instance.getActiveObject();
+          setSelected(Boolean(o));
+          setObjProps(readProps(instance));
+          if (o && ["textbox", "i-text", "text"].includes(o.type) && o.fontFamily)
+            setFont(o.fontFamily);
+        };
         instance.on("selection:created", selection);
         instance.on("selection:updated", selection);
         instance.on("selection:cleared", selection);
@@ -337,7 +506,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       top: 360,
       width: 450,
       fontSize: 54,
-      fontFamily: "Arial",
+      fontFamily: font,
       fontWeight: "bold",
       fill: textColor,
       textAlign: "center",
@@ -482,6 +651,26 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }
             }}
           />
+          <select
+            className="font-select"
+            aria-label={tr("fontLabel")}
+            value={font}
+            onChange={(e) => {
+              setFont(e.target.value);
+              const o = canvas.current?.getActiveObject();
+              if (o && ["textbox", "i-text", "text"].includes(o.type)) {
+                o.set("fontFamily", e.target.value);
+                canvas.current.requestRenderAll();
+                emit();
+              }
+            }}
+          >
+            {FONTS.map((f) => (
+              <option key={f} value={f} style={{ fontFamily: f }}>
+                {f}
+              </option>
+            ))}
+          </select>
           <button
             className="icon-button"
             aria-label={tr("addTextCanvas")}
@@ -490,6 +679,93 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           >
             <Type size={19} />
           </button>
+        </div>
+      </div>
+      {objProps && (
+        <div className="text-props">
+          {objProps.isText && (
+            <div className="prop-row">
+              <span>{tr("spacingLabel")}</span>
+              <input
+                type="range"
+                min="-20"
+                max="300"
+                step="5"
+                value={objProps.charSpacing}
+                onChange={(e) => applyProp("charSpacing", Number(e.target.value))}
+              />
+            </div>
+          )}
+          {objProps.isText && (
+            <div className="prop-row">
+              <span>{tr("strokeLabel")}</span>
+              <input
+                type="range"
+                min="0"
+                max="2.5"
+                step="0.1"
+                value={objProps.strokeWidth}
+                onChange={(e) => applyProp("strokeWidth", Number(e.target.value))}
+              />
+            </div>
+          )}
+          <div className="prop-row">
+            <span>{tr("opacityLabel")}</span>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              step="5"
+              value={objProps.opacity}
+              onChange={(e) => applyProp("opacity", Number(e.target.value))}
+            />
+          </div>
+        </div>
+      )}
+      <div className="element-tools">
+        <div className="field-label">{tr("templatesTitle")}</div>
+        <div className="template-grid">
+          {TEMPLATES.map((tpl) => (
+            <button
+              key={tpl.id}
+              type="button"
+              className="template-card"
+              disabled={!ready || !!busy}
+              onClick={() => applyTemplate(tpl)}
+            >
+              <span style={{ fontFamily: tpl.font }}>{tpl.title}</span>
+              <small>{tpl.name}</small>
+            </button>
+          ))}
+        </div>
+        <div className="field-label">{tr("shapesTitle")}</div>
+        <div className="shape-row">
+          {SHAPE_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              className="secondary mini-btn"
+              disabled={!ready || !!busy}
+              onClick={() => addShape(id)}
+            >
+              {tr("shp" + id[0].toUpperCase() + id.slice(1))}
+            </button>
+          ))}
+        </div>
+        <div className="field-label">{tr("clipartTitle")}</div>
+        <div className="clipart-grid">
+          {CLIPARTS.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="clipart-btn"
+              title={c.label}
+              aria-label={c.label}
+              disabled={!ready || !!busy}
+              onClick={() => addClipart(c)}
+              dangerouslySetInnerHTML={{ __html: c.svg }}
+            />
+          ))}
         </div>
       </div>
       <div className="editor-canvas-shell">

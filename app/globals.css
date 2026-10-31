@@ -2196,3 +2196,34 @@ th { background: #f2f5fd; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 4px 2px;
 }
 .icon-button.mini { width: 29px; height: 29px; border-radius: 8px; }
+
+/* === Editor ala Lumise 2026-10-31 (2): font, efek teks, elemen === */
+.font-select {
+  max-width: 128px; border: 1px solid var(--line); border-radius: 9px;
+  padding: 7px 6px; background: var(--paper); color: var(--ink); font-size: 13px;
+}
+.text-props {
+  margin-top: 12px; background: var(--soft); border-radius: 12px;
+  padding: 10px 12px; display: grid; gap: 8px;
+}
+.prop-row { display: flex; align-items: center; gap: 10px; }
+.prop-row span { width: 118px; font-size: 12.5px; font-weight: 650; flex-shrink: 0; }
+.prop-row input { flex: 1; accent-color: var(--olive); }
+.element-tools { margin-top: 16px; display: grid; gap: 8px; }
+.template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.template-card {
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px;
+  background: var(--paper); display: grid; gap: 2px; text-align: left; cursor: pointer;
+}
+.template-card:hover { border-color: var(--accent-mid); }
+.template-card span { font-size: 19px; line-height: 1.15; color: var(--ink); }
+.template-card small { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
+.shape-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.mini-btn { padding: 6px 11px; font-size: 12.5px; }
+.clipart-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.clipart-btn {
+  border: 1px solid var(--line); border-radius: 12px; padding: 8px;
+  background: var(--paper); cursor: pointer; display: grid; place-items: center;
+}
+.clipart-btn:hover { border-color: var(--accent-mid); }
+.clipart-btn svg { width: 100%; height: 42px; }
