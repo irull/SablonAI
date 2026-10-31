@@ -30,6 +30,19 @@ const MASKING_IMAGES = {
   A3: "/assets/masking/sablon-A3-28x42.jpg",
 };
 
+function SizeChartCard({ productId, tr }) {
+  const has =
+    productId === "kaos-anak" ||
+    productId === "kaos-pendek" ||
+    productId === "kaos-panjang";
+  if (!has) return null;
+  return (
+    <div className="detail-group">
+      <SizeChart productId={productId} tr={tr} />
+    </div>
+  );
+}
+
 function MaskingFigure({ print, side, usedLabel, tr }) {
   const src = MASKING_IMAGES[print.id];
   if (!src) return null;
@@ -237,6 +250,7 @@ export default function PricingPanel({
                 <X size={18} />
               </button>
             </div>
+      <div className="detail-group">
       <OptionGroup
         label={tr("stepProduct")}
         value={productId}
@@ -264,7 +278,8 @@ export default function PricingPanel({
               : `${s} — ${rp(productPriceForSize(s))}`,
         }))}
       />
-      <SizeChart productId={productId} tr={tr} />
+      </div>
+      <div className="detail-group">
       <OptionGroup
         label={tr("stepFront")}
         value={frontPrintId}
@@ -375,6 +390,8 @@ export default function PricingPanel({
           tr={tr}
         />
       )}
+      </div>
+      <SizeChartCard productId={productId} tr={tr} />
             <button
               type="button"
               className="primary full-width"

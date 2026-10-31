@@ -2249,3 +2249,10 @@ th { background: #f2f5fd; }
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
 }
 .detail-head h2 { font-size: 17px; margin: 0; }
+
+/* === Popup detail dikelompokkan per kartu 2026-10-31:
+   Produk+Ukuran | Sablon depan+belakang | Tabel ukuran === */
+.detail-group {
+  border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px; display: grid; gap: 12px;
+}
