@@ -74,6 +74,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   const mountRef = useRef(null);
   const world = useRef(null);
   const [status, setStatus] = useState("loading");
+  const readyOnce = useRef(false);
   const [auto, setAuto] = useState(true);
   const autoRef = useRef(true);
   const artworkRef = useRef(artwork);
@@ -162,6 +163,23 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
             else if ("color" in m) w.fabricMats.push(m);
           });
         });
+        if (w.printMat && w.origMap) {
+          const phCanvas = document.createElement("canvas");
+          phCanvas.width = 2;
+          phCanvas.height = 2;
+          const ph = new THREE.CanvasTexture(phCanvas);
+          ph.repeat.copy(w.origMap.repeat);
+          ph.offset.copy(w.origMap.offset);
+          ph.center.copy(w.origMap.center);
+          ph.rotation = w.origMap.rotation;
+          ph.wrapS = w.origMap.wrapS;
+          ph.wrapT = w.origMap.wrapT;
+          ph.matrixAutoUpdate = w.origMap.matrixAutoUpdate;
+          if (!ph.matrixAutoUpdate) ph.matrix.copy(w.origMap.matrix);
+          w.tex = ph;
+          w.printMat.map = ph;
+          w.printMat.needsUpdate = true;
+        }
         const box = new THREE.Box3().setFromObject(gltf.scene);
         const sphere = box.getBoundingSphere(new THREE.Sphere());
         controls.target.copy(sphere.center);
@@ -194,7 +212,6 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           renderer.render(scene, camera);
         };
         loop();
-        setStatus("ready");
         applyArtwork();
         applyBack();
       } catch (e) {
@@ -320,8 +337,17 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       w.printMat.map = tex;
       w.printMat.color.set("#ffffff");
       w.printMat.needsUpdate = true;
+      if (!readyOnce.current) {
+        readyOnce.current = true;
+        setStatus("ready");
+      }
     };
-    img.onerror = () => {};
+    img.onerror = () => {
+      if (!readyOnce.current) {
+        readyOnce.current = true;
+        setStatus("ready");
+      }
+    };
     img.src = artworkRef.current;
   }
 
