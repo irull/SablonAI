@@ -1,0 +1,14 @@
+import sharp from "sharp";
+import fs from "node:fs";
+const input = "Mockup belakang putih.png";
+const jpgOut = "public/assets/mockup-kaos-belakang.jpg";
+const maskOut = "public/assets/mockup-kaos-belakang-mask.png";
+const meta = await sharp(input).metadata();
+console.log("input", meta.width, meta.height, meta.channels, meta.format);
+await sharp(input).resize({ width: 1024 }).flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toFile(jpgOut);
+await sharp(input).resize({ width: 1024 }).png().toFile(maskOut);
+console.log("jpg bytes", fs.statSync(jpgOut).size, "mask bytes", fs.statSync(maskOut).size);
+const jm = await sharp(jpgOut).metadata();
+const mm = await sharp(maskOut).metadata();
+console.log("jpg meta", jm.width, jm.height, jm.format);
+console.log("mask meta", mm.width, mm.height, mm.channels, mm.format);

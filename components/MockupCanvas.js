@@ -29,7 +29,7 @@ const makeCanvas = (w, h) =>
 // py lama 222/740 = 0.30, jadi fraksi 0.30 ini konsisten dengan
 // area cetak lama saat foto mengisi penuh tinggi kanvas.
 const MockupCanvas = forwardRef(function MockupCanvas(
-  { artwork, color, printWidth, printHeight, showArea },
+  { artwork, color, printWidth, printHeight, showArea, side = "front" },
   ref,
 ) {
   const canvas = useRef(null);
@@ -45,9 +45,11 @@ const MockupCanvas = forwardRef(function MockupCanvas(
 
   useEffect(() => {
     let active = true;
+    setReady(false);
+    const back = side === "back";
     Promise.all([
-      loadImage("/assets/mockup-kaos-putih.jpg"),
-      loadImage("/assets/mockup-kaos-mask.png"),
+      loadImage(back ? "/assets/mockup-kaos-belakang.jpg" : "/assets/mockup-kaos-putih.jpg"),
+      loadImage(back ? "/assets/mockup-kaos-belakang-mask.png" : "/assets/mockup-kaos-mask.png"),
     ])
       .then(([photo, mask]) => {
         if (!active) return;
@@ -75,7 +77,7 @@ const MockupCanvas = forwardRef(function MockupCanvas(
     return () => {
       active = false;
     };
-  }, []);
+  }, [side]);
 
   useEffect(() => {
     if (!ready) return;
@@ -108,7 +110,7 @@ const MockupCanvas = forwardRef(function MockupCanvas(
         const pw = printWidth * 7,
           ph = printHeight * 7;
         const px = rect.x + (rect.w - pw) / 2,
-          py = rect.y + rect.h * 0.3;
+          py = rect.y + rect.h * (side === "back" ? 0.25 : 0.3);
         if (art) {
           const layer = makeCanvas(800, 740),
             lc = layer.getContext("2d");
@@ -177,7 +179,7 @@ const MockupCanvas = forwardRef(function MockupCanvas(
     return () => {
       renderId.current++;
     };
-  }, [ready, artwork, color, printWidth, printHeight, showArea]);
+  }, [ready, artwork, color, printWidth, printHeight, showArea, side]);
 
   return (
     <>

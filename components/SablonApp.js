@@ -80,8 +80,21 @@ export default function SablonApp() {
   };
   const frontIsLandscape =
     frontOrientation === "landscape" && frontPrint.wCm !== frontPrint.hCm;
+  const backPrint = backPrintId
+    ? config.printSizes.find((p) => p.id === backPrintId) || null
+    : null;
+  const backDims = backPrint
+    ? orientedDimensions(backPrint, backOrientation) || {
+        wCm: backPrint.wCm,
+        hCm: backPrint.hCm,
+      }
+    : null;
+  const backIsLandscape = Boolean(
+    backPrint && backOrientation === "landscape" && backPrint.wCm !== backPrint.hCm,
+  );
   const [design, setDesign] = useState({ ...sampleBriefs[0], demo: true });
   const [view3d, setView3d] = useState(false);
+  const [side2d, setSide2d] = useState("front");
   const [showArea, setShowArea] = useState(false),
     [help, setHelp] = useState(false),
     [full, setFull] = useState(false);
@@ -361,7 +374,14 @@ export default function SablonApp() {
               </div>
               <div className="mockup-stage">
                 {!view3d && (
-                  <span className="view-label">{tr("viewFront")}</span>
+                  <div className="view-toggle side-toggle">
+                    <button type="button" className={"seg" + (side2d === "front" ? " on" : "")} onClick={() => setSide2d("front")}>
+                      {tr("viewFront")}
+                    </button>
+                    <button type="button" className={"seg" + (side2d === "back" ? " on" : "")} onClick={() => setSide2d("back")}>
+                      {tr("viewBack")}
+                    </button>
+                  </div>
                 )}
                 {view3d && (
                   <ShirtViewer3D
@@ -379,20 +399,26 @@ export default function SablonApp() {
                 
                 <MockupCanvas
                   ref={mockup}
+                  side={side2d}
                   artwork={
-                    tab === "editor"
-                      ? editedDesign || design.image
-                      : design.image
+                    side2d === "back" && !backPrintId
+                      ? null
+                      : tab === "editor"
+                        ? editedDesign || design.image
+                        : design.image
                   }
                   color={color.hex}
-                  printWidth={frontDims.wCm}
-                  printHeight={frontDims.hCm}
-                  showArea={showArea}
+                  printWidth={side2d === "back" && backDims ? backDims.wCm : frontDims.wCm}
+                  printHeight={side2d === "back" && backDims ? backDims.hCm : frontDims.hCm}
+                  showArea={showArea && (side2d === "front" || Boolean(backPrintId))}
                 />
                 <div className="print-measure">
                   <span />
-                  {frontDims.wCm} × {frontDims.hCm} cm
-                  {frontIsLandscape ? tr("landscapeSuffix") : ""}
+                  {side2d === "back"
+                    ? backDims
+                      ? backDims.wCm + " × " + backDims.hCm + " cm" + (backIsLandscape ? tr("landscapeSuffix") : "")
+                      : tr("backPlainNote")
+                    : frontDims.wCm + " × " + frontDims.hCm + " cm" + (frontIsLandscape ? tr("landscapeSuffix") : "")}
                   <span />
                 </div>
                 <span className="mockup-label">

@@ -2293,3 +2293,6 @@ th { background: #f2f5fd; }
 @media (max-width: 720px) {
   .viewer3d-mount { height: 400px; }
 }
+
+/* Saklar Depan/Belakang di panggung mockup 2D */
+.side-toggle { left: 12px; right: auto; }
