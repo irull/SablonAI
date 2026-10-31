@@ -11,8 +11,33 @@ const PRINT_RECT = { x: 0.18, y: 0.06, w: 0.64, h: 0.62 };
 // permukaan punggung (z permukaan terukur sekitar -0,17 pada pita dada;
 // bidang di z -0,184, tepi menekuk ke depan mengikuti lengkung badan).
 const BACK_Y = 1.4;
-const BACK_Z = -0.184;
-const BACK_BEND = 0.6;
+// Profil z permukaan punggung hasil ukur vertex model (pita y 1,24-1,56,
+// persentil-10 per irisan x 2 cm): punggung kaos gantung punya dua
+// ridge lipatan di sekitar |x| 0,06, jadi decal harus mengikuti profil
+// ini, bukan bidang datar — kalau tidak, lipatan menembus decal dan
+// desain tampak terpotong-potong.
+const BACK_PROFILE = [
+  [-0.2, -0.147], [-0.18, -0.153], [-0.16, -0.158], [-0.14, -0.171],
+  [-0.12, -0.178], [-0.1, -0.182], [-0.08, -0.197], [-0.06, -0.197],
+  [-0.04, -0.186], [-0.02, -0.174], [0, -0.169], [0.02, -0.176],
+  [0.04, -0.188], [0.06, -0.196], [0.08, -0.193], [0.1, -0.182],
+  [0.12, -0.178], [0.14, -0.169], [0.16, -0.157], [0.18, -0.153],
+  [0.2, -0.147],
+];
+const BACK_LIFT = 0.009;
+function surfaceZ(x) {
+  const P = BACK_PROFILE;
+  if (x <= P[0][0]) return P[0][1];
+  if (x >= P[P.length - 1][0]) return P[P.length - 1][1];
+  for (let i = 1; i < P.length; i++) {
+    if (x <= P[i][0]) {
+      const x0 = P[i - 1][0], z0 = P[i - 1][1];
+      const x1 = P[i][0], z1 = P[i][1];
+      return z0 + ((z1 - z0) * (x - x0)) / (x1 - x0);
+    }
+  }
+  return P[P.length - 1][1];
+}
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
 
@@ -56,7 +81,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.05;
+        renderer.toneMappingExposure = 1.16;
         mount.appendChild(renderer.domElement);
         const scene = new THREE.Scene();
         const pmrem = new THREE.PMREMGenerator(renderer);
@@ -68,7 +93,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         const key = new THREE.DirectionalLight(0xffffff, 1.6);
         key.position.set(1.2, 2.2, 2.4);
         scene.add(key);
-        scene.add(new THREE.HemisphereLight(0xffffff, 0x8a93a8, 0.5));
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x8a93a8, 0.65));
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
@@ -200,11 +225,13 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       const tex = new THREE.CanvasTexture(cv);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
-      const geo = new THREE.PlaneGeometry(1, 1, 24, 1);
+      const bw = (backDimsRef.current.w || 28) / 100;
+      const bh = (backDimsRef.current.h || 28) / 100;
+      const geo = new THREE.PlaneGeometry(bw, bh, 40, 8);
       const pos = geo.attributes.position;
       for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i);
-        pos.setZ(i, -BACK_BEND * x * x);
+        const lx = pos.getX(i);
+        pos.setZ(i, BACK_LIFT - surfaceZ(-lx));
       }
       geo.computeVertexNormals();
       const mat = new THREE.MeshStandardMaterial({
@@ -216,10 +243,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         side: THREE.DoubleSide,
       });
       const mesh = new THREE.Mesh(geo, mat);
-      const bw = (backDimsRef.current.w || 28) / 100;
-      const bh = (backDimsRef.current.h || 28) / 100;
-      mesh.scale.set(bw, bh, bw);
-      mesh.position.set(0, BACK_Y, BACK_Z);
+      mesh.position.set(0, BACK_Y, 0);
       mesh.rotation.y = Math.PI;
       w.scene.add(mesh);
       w.backDecal = mesh;
