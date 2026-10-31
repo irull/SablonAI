@@ -15,9 +15,17 @@ import {
   Plus,
   RotateCcw,
   RotateCw,
+  ArrowDown,
+  ArrowUp,
+  Eye,
+  EyeOff,
+  Lock,
+  LockOpen,
+  Redo2,
   Scissors,
   Trash2,
   Type,
+  Undo2,
 } from "lucide-react";
 import { metaRequest } from "../lib/api";
 import { translate } from "../lib/i18n";
@@ -69,20 +77,160 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [text, setText] = useState(tr("edDefaultText")),
     [textColor, setTextColor] = useState("#101460"),
     [subject, setSubject] = useState("logo");
+  const [zoom, setZoomState] = useState(1),
+    [layers, setLayers] = useState([]),
+    [hist, setHist] = useState({ u: 0, r: 0 });
+  const zoomRef = useRef(1),
+    undoStack = useRef([]),
+    redoStack = useRef([]),
+    historyLock = useRef(false),
+    histTimer = useRef(null),
+    lidRef = useRef(1);
   onChangeRef.current = onChange;
+  const capturePNG = () => {
+    const c = canvas.current;
+    if (!c) return null;
+    const vt = c.viewportTransform ? c.viewportTransform.slice() : null;
+    c.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    const url = c.toDataURL({ format: "png", multiplier: 1 });
+    if (vt) c.setViewportTransform(vt);
+    c.requestRenderAll();
+    return url;
+  };
   const emit = useCallback(() => {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      if (canvas.current)
-        onChangeRef.current(
-          canvas.current.toDataURL({ format: "png", multiplier: 1 }),
-        );
+      const url = capturePNG();
+      if (url) onChangeRef.current(url);
     }, 100);
   }, []);
+  function applyZoom(z) {
+    const next = Math.min(2, Math.max(0.5, z));
+    zoomRef.current = next;
+    setZoomState(next);
+    const c = canvas.current;
+    if (!c || !fabric.current) return;
+    c.zoomToPoint(new fabric.current.Point(300, 360), next);
+    c.requestRenderAll();
+  }
+  function layerLabel(obj) {
+    if (["textbox", "i-text", "text"].includes(obj.type))
+      return (obj.text || tr("layerText")).slice(0, 22);
+    if (obj.type === "image") return tr("layerImage");
+    return tr("layerShape");
+  }
+  function refreshLayers(instance) {
+    const c = instance || canvas.current;
+    if (!c) return;
+    const active = c.getActiveObject();
+    setLayers(
+      c
+        .getObjects()
+        .slice()
+        .reverse()
+        .map((obj) => {
+          if (!obj.__lid) obj.__lid = "L" + lidRef.current++;
+          return {
+            lid: obj.__lid,
+            obj,
+            label: layerLabel(obj),
+            visible: obj.visible !== false,
+            locked: Boolean(obj.lockMovementX),
+            active: obj === active,
+          };
+        }),
+    );
+  }
+  function scheduleSnapshot(instance) {
+    if (historyLock.current) return;
+    clearTimeout(histTimer.current);
+    histTimer.current = setTimeout(() => {
+      const c = instance || canvas.current;
+      if (!c || historyLock.current) return;
+      const json = JSON.stringify(c.toJSON());
+      const stack = undoStack.current;
+      if (stack[stack.length - 1] === json) return;
+      stack.push(json);
+      if (stack.length > 40) stack.shift();
+      redoStack.current = [];
+      setHist({ u: stack.length, r: 0 });
+    }, 250);
+  }
+  async function restore(json) {
+    const c = canvas.current;
+    if (!c) return;
+    historyLock.current = true;
+    try {
+      await c.loadFromJSON(json);
+    } catch {}
+    historyLock.current = false;
+    if (fabric.current)
+      c.zoomToPoint(new fabric.current.Point(300, 360), zoomRef.current);
+    c.requestRenderAll();
+    refreshLayers(c);
+    emit();
+  }
+  function undo() {
+    const stack = undoStack.current;
+    if (stack.length < 2) return;
+    redoStack.current.push(stack.pop());
+    setHist({ u: stack.length, r: redoStack.current.length });
+    restore(stack[stack.length - 1]);
+  }
+  function redo() {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(next);
+    setHist({ u: undoStack.current.length, r: redoStack.current.length });
+    restore(next);
+  }
+  function selectLayer(obj) {
+    const c = canvas.current;
+    if (!c) return;
+    c.setActiveObject(obj);
+    c.requestRenderAll();
+    refreshLayers(c);
+  }
+  function toggleLayer(obj, kind) {
+    const c = canvas.current;
+    if (!c) return;
+    if (kind === "visible") obj.set("visible", obj.visible === false);
+    else {
+      const locked = !obj.lockMovementX;
+      obj.set({
+        lockMovementX: locked,
+        lockMovementY: locked,
+        lockRotation: locked,
+        lockScalingX: locked,
+        lockScalingY: locked,
+      });
+    }
+    obj.setCoords();
+    c.requestRenderAll();
+    refreshLayers(c);
+    emit();
+  }
+  function moveLayer(obj, dir) {
+    const c = canvas.current;
+    if (!c) return;
+    if (dir === "forward") obj.bringForward();
+    else obj.sendBackwards();
+    c.requestRenderAll();
+    refreshLayers(c);
+    emit();
+  }
+  function deleteLayer(obj) {
+    const c = canvas.current;
+    if (!c) return;
+    c.remove(obj);
+    c.discardActiveObject();
+    c.requestRenderAll();
+    refreshLayers(c);
+    emit();
+  }
   useImperativeHandle(ref, () => ({
     exportJSON: () => canvas.current?.toObject(),
-    exportPNG: () =>
-      canvas.current?.toDataURL({ format: "png", multiplier: 1 }),
+    exportPNG: () => capturePNG(),
   }));
   useEffect(() => {
     let alive = true,
@@ -108,6 +256,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         instance.on("selection:created", selection);
         instance.on("selection:updated", selection);
         instance.on("selection:cleared", selection);
+        const refresh = () => refreshLayers(instance);
+        instance.on("object:added", refresh);
+        instance.on("object:removed", refresh);
+        instance.on("object:modified", refresh);
+        instance.on("selection:created", refresh);
+        instance.on("selection:updated", refresh);
+        instance.on("selection:cleared", refresh);
+        const snap = () => scheduleSnapshot(instance);
+        instance.on("object:added", snap);
+        instance.on("object:removed", snap);
+        instance.on("object:modified", snap);
+        instance.on("text:changed", snap);
+        undoStack.current = [JSON.stringify(instance.toJSON())];
+        redoStack.current = [];
+        setHist({ u: 1, r: 0 });
         setReady(true);
       })
       .catch(() =>
@@ -259,7 +422,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
   }
   function download() {
-    const src = canvas.current?.toDataURL({ format: "png", multiplier: 1 });
+    const src = capturePNG();
     if (!src) return;
     const a = document.createElement("a");
     a.href = src;
@@ -332,7 +495,57 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       <div className="editor-canvas-shell">
         <canvas ref={element} aria-label={tr("canvasLabel")} />
       </div>
+      <div className="zoom-bar">
+        <button
+          type="button"
+          className="icon-button mini"
+          aria-label={tr("zoomOut")}
+          disabled={!ready}
+          onClick={() => applyZoom(zoomRef.current - 0.1)}
+        >
+          <Minus size={15} />
+        </button>
+        <input
+          type="range"
+          min="50"
+          max="200"
+          step="5"
+          value={Math.round(zoom * 100)}
+          aria-label={tr("zoomLabel")}
+          onChange={(e) => applyZoom(Number(e.target.value) / 100)}
+        />
+        <button
+          type="button"
+          className="icon-button mini"
+          aria-label={tr("zoomIn")}
+          disabled={!ready}
+          onClick={() => applyZoom(zoomRef.current + 0.1)}
+        >
+          <Plus size={15} />
+        </button>
+        <span className="zoom-pct">{Math.round(zoom * 100)}%</span>
+      </div>
       <div className="editor-tools">
+        <button
+          type="button"
+          className="icon-button"
+          disabled={hist.u < 2 || !!busy}
+          aria-label={tr("undoLabel")}
+          title={tr("undoLabel")}
+          onClick={undo}
+        >
+          <Undo2 size={17} />
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          disabled={!hist.r || !!busy}
+          aria-label={tr("redoLabel")}
+          title={tr("redoLabel")}
+          onClick={redo}
+        >
+          <Redo2 size={17} />
+        </button>
         {[
           { a: "smaller", l: tr("toolSmaller"), i: Minus },
           { a: "bigger", l: tr("toolBigger"), i: Plus },
@@ -351,6 +564,67 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             <t.i size={17} />
           </button>
         ))}
+      </div>
+      <div className="layers-panel">
+        <div className="field-label">{tr("layersTitle")}</div>
+        {layers.length === 0 ? (
+          <p className="small-note">{tr("layersEmpty")}</p>
+        ) : (
+          <ul className="layers-list">
+            {layers.map((l) => (
+              <li key={l.lid} className={"layer-row" + (l.active ? " active" : "")}>
+                <button type="button" className="layer-name" onClick={() => selectLayer(l.obj)}>
+                  {l.label}
+                </button>
+                <button
+                  type="button"
+                  className="icon-button mini"
+                  aria-label={l.visible ? tr("layerHide") : tr("layerShow")}
+                  title={l.visible ? tr("layerHide") : tr("layerShow")}
+                  onClick={() => toggleLayer(l.obj, "visible")}
+                >
+                  {l.visible ? <Eye size={15} /> : <EyeOff size={15} />}
+                </button>
+                <button
+                  type="button"
+                  className="icon-button mini"
+                  aria-label={l.locked ? tr("layerUnlock") : tr("layerLock")}
+                  title={l.locked ? tr("layerUnlock") : tr("layerLock")}
+                  onClick={() => toggleLayer(l.obj, "lock")}
+                >
+                  {l.locked ? <Lock size={15} /> : <LockOpen size={15} />}
+                </button>
+                <button
+                  type="button"
+                  className="icon-button mini"
+                  aria-label={tr("layerForward")}
+                  title={tr("layerForward")}
+                  onClick={() => moveLayer(l.obj, "forward")}
+                >
+                  <ArrowUp size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button mini"
+                  aria-label={tr("layerBackward")}
+                  title={tr("layerBackward")}
+                  onClick={() => moveLayer(l.obj, "backward")}
+                >
+                  <ArrowDown size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button mini"
+                  aria-label={tr("toolDelete")}
+                  title={tr("toolDelete")}
+                  onClick={() => deleteLayer(l.obj)}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <p className="small-note">{tr("editorHint")}</p>
       <div className="background-tools">

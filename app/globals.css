@@ -2176,3 +2176,23 @@ th { background: #f2f5fd; }
   .rail-item.active:before { display: none; }
   .workspace { padding-bottom: 80px; }
 }
+
+/* === Editor ala Lumise 2026-10-31: zoom, undo/redo, layers === */
+.zoom-bar {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  background: var(--soft); border-radius: 12px; padding: 6px 10px;
+}
+.zoom-bar input[type="range"] { flex: 1; accent-color: var(--olive); }
+.zoom-pct { font: 800 12.5px Manrope, sans-serif; min-width: 44px; text-align: right; }
+.layers-panel { margin-top: 16px; }
+.layers-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.layer-row {
+  display: flex; align-items: center; gap: 3px; padding: 5px 6px 5px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--paper);
+}
+.layer-row.active { border-color: var(--olive); background: var(--soft); }
+.layer-name {
+  flex: 1; text-align: left; font-size: 13px; font-weight: 600; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 4px 2px;
+}
+.icon-button.mini { width: 29px; height: 29px; border-radius: 8px; }
