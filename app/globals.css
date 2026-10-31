@@ -2151,10 +2151,6 @@ th { background: #f2f5fd; }
   background: var(--soft); color: var(--olive-dark);
   padding: 5px 11px; border-radius: 999px; font-size: 12px;
 }
-.settings-panel .pricing-box {
-  position: sticky; bottom: 14px; z-index: 6;
-  box-shadow: 0 16px 38px rgba(16, 20, 96, 0.28);
-}
 .settings-panel .order-form { border-top: 1px solid var(--line); padding-top: 18px; }
 .panel-heading h2 { font-size: 16px; }
 .rail-item { position: relative; }
@@ -2227,3 +2223,29 @@ th { background: #f2f5fd; }
 }
 .clipart-btn:hover { border-color: var(--accent-mid); }
 .clipart-btn svg { width: 100%; height: 42px; }
+
+/* === Detail kaos jadi popup 2026-10-31 (permintaan user: panel kanan
+   ringkas, harga tidak lagi lengket di atas saat gulir) === */
+.spec-summary { display: grid; gap: 7px; margin: 0 0 12px; }
+.spec-summary > div { display: flex; justify-content: space-between; gap: 12px; }
+.spec-summary dt { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.spec-summary dd { margin: 0; font-size: 13px; font-weight: 750; text-align: right; }
+.detail-button { margin-bottom: 16px; }
+.detail-dialog-root { position: relative; z-index: 80; }
+.detail-backdrop {
+  position: fixed; inset: 0; background: rgba(10, 13, 36, 0.55);
+}
+.detail-wrap {
+  position: fixed; inset: 0; overflow-y: auto; display: grid;
+  place-items: center; padding: 18px;
+}
+.detail-card {
+  background: var(--paper); color: var(--ink); border-radius: 18px;
+  padding: 22px; width: min(560px, 100%); max-height: calc(100vh - 40px);
+  overflow-y: auto; display: grid; gap: 14px;
+  box-shadow: 0 30px 80px rgba(2, 3, 19, 0.35);
+}
+.detail-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+}
+.detail-head h2 { font-size: 17px; margin: 0; }

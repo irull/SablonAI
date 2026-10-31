@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ArrowRight, CheckCheck, LoaderCircle, Shirt } from "lucide-react";
+import { ArrowRight, CheckCheck, LoaderCircle, Pencil, Shirt, X } from "lucide-react";
 import { config, formatRupiah as rp } from "../lib/config";
 import {
   calculatePrice,
@@ -8,7 +8,14 @@ import {
   productPrice,
 } from "../lib/pricing";
 import OptionGroup from "./ui/OptionGroup";
-import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
+import {
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+} from "@headlessui/react";
 import { translate } from "../lib/i18n";
 import {
   buildWhatsAppOrderLink,
@@ -120,6 +127,7 @@ export default function PricingPanel({
     [success, setSuccess] = useState("");
   const [lastOrder, setLastOrder] = useState(null);
   const [phone, setPhone] = useState("");
+  const [detailOpen, setDetailOpen] = useState(false);
   const product = getProduct(productId);
   const productPriceForSize = (s) => {
     try {
@@ -187,6 +195,48 @@ export default function PricingPanel({
           <p>{tr("ppSub")}</p>
         </div>
       </div>
+      <dl className="spec-summary">
+        <div>
+          <dt>{tr("sumProduct")}</dt>
+          <dd>
+            {product.name} · {size}
+          </dd>
+        </div>
+        <div>
+          <dt>{tr("sumFront")}</dt>
+          <dd>{quote.frontPrintLabel}</dd>
+        </div>
+        <div>
+          <dt>{tr("sumBack")}</dt>
+          <dd>{quote.backPrintLabel}</dd>
+        </div>
+      </dl>
+      <button
+        type="button"
+        className="secondary full-width detail-button"
+        onClick={() => setDetailOpen(true)}
+      >
+        <Pencil size={15} /> {tr("detailEdit")}
+      </button>
+      <Dialog
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        className="detail-dialog-root"
+      >
+        <div className="detail-backdrop" aria-hidden="true" />
+        <div className="detail-wrap">
+          <DialogPanel className="detail-card">
+            <div className="detail-head">
+              <DialogTitle>{tr("detailTitle")}</DialogTitle>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={tr("doneLabel")}
+                onClick={() => setDetailOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
       <OptionGroup
         label={tr("stepProduct")}
         value={productId}
@@ -325,6 +375,16 @@ export default function PricingPanel({
           tr={tr}
         />
       )}
+            <button
+              type="button"
+              className="primary full-width"
+              onClick={() => setDetailOpen(false)}
+            >
+              {tr("doneLabel")}
+            </button>
+          </DialogPanel>
+        </div>
+      </Dialog>
       <div className="quantity-field">
         <label htmlFor="quantity" className="field-label">
           {tr("qtyLabel")}
