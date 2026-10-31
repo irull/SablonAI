@@ -465,7 +465,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       .then((img) => {
         if (current !== generation.current || !canvas.current) return;
         canvas.current.clear();
-        const scale = Math.min(540 / img.width, 660 / img.height);
+        const scale =
+          img.width === 600 && img.height === 720
+            ? 1
+            : Math.min(540 / img.width, 660 / img.height);
         img.set({
           left: 300,
           top: 360,

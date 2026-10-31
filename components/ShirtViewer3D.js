@@ -176,9 +176,9 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
 
   function applyBack() {
     const w = world.current;
-    if (!w || !w.group) return;
+    if (!w || !w.scene) return;
     if (w.backDecal) {
-      w.group.remove(w.backDecal);
+      w.scene.remove(w.backDecal);
       w.backDecal.geometry.dispose();
       if (w.backDecal.material.map) w.backDecal.material.map.dispose();
       w.backDecal.material.dispose();
@@ -189,7 +189,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      if (!world.current || world.current !== w || !w.group) return;
+      if (!world.current || world.current !== w || !w.scene) return;
       const THREE = w.THREE;
       const cv = document.createElement("canvas");
       cv.width = 1024;
@@ -221,7 +221,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       mesh.scale.set(bw, bh, bw);
       mesh.position.set(0, BACK_Y, BACK_Z);
       mesh.rotation.y = Math.PI;
-      w.group.add(mesh);
+      w.scene.add(mesh);
       w.backDecal = mesh;
     };
     img.onerror = () => {};
