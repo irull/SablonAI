@@ -11,32 +11,60 @@ const PRINT_RECT = { x: 0.18, y: 0.06, w: 0.64, h: 0.62 };
 // permukaan punggung (z permukaan terukur sekitar -0,17 pada pita dada;
 // bidang di z -0,184, tepi menekuk ke depan mengikuti lengkung badan).
 const BACK_Y = 1.4;
-// Profil z permukaan punggung hasil ukur vertex model (pita y 1,24-1,56,
-// persentil-10 per irisan x 2 cm): punggung kaos gantung punya dua
-// ridge lipatan di sekitar |x| 0,06, jadi decal harus mengikuti profil
-// ini, bukan bidang datar — kalau tidak, lipatan menembus decal dan
-// desain tampak terpotong-potong.
-const BACK_PROFILE = [
-  [-0.2, -0.147], [-0.18, -0.153], [-0.16, -0.158], [-0.14, -0.171],
-  [-0.12, -0.178], [-0.1, -0.182], [-0.08, -0.197], [-0.06, -0.197],
-  [-0.04, -0.186], [-0.02, -0.174], [0, -0.169], [0.02, -0.176],
-  [0.04, -0.188], [0.06, -0.196], [0.08, -0.193], [0.1, -0.182],
-  [0.12, -0.178], [0.14, -0.169], [0.16, -0.157], [0.18, -0.153],
-  [0.2, -0.147],
-];
-const BACK_LIFT = 0.009;
-function surfaceZ(x) {
-  const P = BACK_PROFILE;
-  if (x <= P[0][0]) return P[0][1];
-  if (x >= P[P.length - 1][0]) return P[P.length - 1][1];
-  for (let i = 1; i < P.length; i++) {
-    if (x <= P[i][0]) {
-      const x0 = P[i - 1][0], z0 = P[i - 1][1];
-      const x1 = P[i][0], z1 = P[i][1];
-      return z0 + ((z1 - z0) * (x - x0)) / (x1 - x0);
+// Grid z permukaan punggung hasil ukur vertex panel belakang model
+// (persentil-10 per sel 2x4 cm): punggung kaos gantung punya dua ridge
+// lipatan di sekitar |x| 0,06 yang menonjol sampai z -0,198, sedangkan
+// tengahnya -0,169. Decal dibentuk mengikuti grid ini (interpolasi
+// bilinier) dengan jeda angkat kecil, supaya desain menempel mengikuti
+// lipatan — bukan bidang datar yang melayang atau tertembus kain.
+const BACK_XS = [-0.22, -0.2, -0.18, -0.16, -0.14, -0.12, -0.1, -0.08, -0.06, -0.04, -0.02, 0, 0.02, 0.04, 0.06, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.22];
+const BACK_YS = [1.14, 1.18, 1.22, 1.26, 1.3, 1.34, 1.38, 1.42, 1.46, 1.5, 1.54, 1.58, 1.62];
+const BACK_GRID = (() => {
+  const raw = [
+    [null, null, null, -0.102, -0.131, -0.158, -0.18, -0.191, -0.192, -0.189, -0.179, -0.17, -0.177, -0.188, -0.191, -0.189, -0.18, -0.163, -0.129, -0.081, null, null, null],
+    [null, null, null, -0.102, -0.137, -0.165, -0.184, -0.193, -0.194, -0.19, -0.178, -0.17, -0.178, -0.189, -0.192, -0.191, -0.181, -0.155, -0.121, -0.089, null, null, null],
+    [null, null, null, -0.074, -0.122, -0.154, -0.186, -0.195, -0.195, -0.19, -0.178, -0.17, -0.179, -0.19, -0.194, -0.193, -0.177, -0.132, -0.115, -0.089, null, null, null],
+    [null, null, null, -0.063, -0.102, -0.126, -0.178, -0.197, -0.197, -0.189, -0.177, -0.17, -0.178, -0.19, -0.195, -0.194, -0.164, -0.145, -0.115, -0.067, null, null, null],
+    [null, null, null, -0.086, -0.123, -0.14, -0.165, -0.198, -0.198, -0.188, -0.175, -0.17, -0.178, -0.19, -0.196, -0.194, -0.156, -0.155, -0.131, -0.093, null, null, null],
+    [null, null, null, -0.119, -0.143, -0.155, -0.164, -0.198, -0.198, -0.187, -0.175, -0.169, -0.177, -0.19, -0.196, -0.194, -0.165, -0.164, -0.151, -0.119, null, null, null],
+    [null, null, null, -0.14, -0.159, -0.167, -0.173, -0.197, -0.197, -0.184, -0.174, -0.169, -0.175, -0.187, -0.196, -0.193, -0.173, -0.172, -0.163, -0.139, null, null, null],
+    [null, null, -0.149, -0.157, -0.171, -0.177, -0.181, -0.196, -0.194, -0.181, -0.172, -0.168, -0.174, -0.183, -0.195, -0.194, -0.181, -0.178, -0.171, -0.156, -0.147, null, null],
+    [null, null, -0.16, -0.168, -0.175, -0.181, -0.186, -0.193, -0.189, -0.179, -0.173, -0.167, -0.173, -0.18, -0.191, -0.191, -0.184, -0.18, -0.174, -0.166, -0.161, null, null],
+    [null, -0.153, -0.158, -0.172, -0.174, -0.18, -0.184, -0.186, -0.182, -0.176, -0.171, -0.165, -0.171, -0.177, -0.183, -0.187, -0.183, -0.18, -0.174, -0.168, -0.164, -0.152, null],
+    [null, -0.14, -0.151, -0.158, -0.169, -0.173, -0.176, -0.177, -0.174, -0.17, -0.166, -0.165, -0.167, -0.171, -0.174, -0.177, -0.176, -0.171, -0.167, -0.165, -0.147, -0.14, null],
+    [-0.091, -0.111, -0.126, -0.136, -0.147, -0.156, -0.16, -0.164, -0.162, -0.162, -0.163, -0.163, -0.163, -0.162, -0.163, -0.164, -0.161, -0.158, -0.147, -0.135, -0.125, -0.111, -0.101],
+    [null, null, null, -0.089, -0.111, -0.124, -0.131, -0.137, -0.141, -0.141, -0.141, -0.141, -0.141, -0.141, -0.141, -0.137, -0.132, -0.122, -0.108, -0.092, null, null, null],
+  ];
+  return raw.map((row) => {
+    const out = row.slice();
+    let last = null;
+    for (let i = 0; i < out.length; i++) {
+      if (out[i] == null) { if (last != null) out[i] = last; } else last = out[i];
     }
-  }
-  return P[P.length - 1][1];
+    last = null;
+    for (let i = out.length - 1; i >= 0; i--) {
+      if (out[i] == null) { if (last != null) out[i] = last; } else last = out[i];
+    }
+    return out;
+  });
+})();
+const BACK_LIFT = 0.004;
+function surfaceZ2(x, y) {
+  const xs = BACK_XS, ys = BACK_YS;
+  const cx = Math.min(xs[xs.length - 1], Math.max(xs[0], x));
+  const cy = Math.min(ys[ys.length - 1], Math.max(ys[0], y));
+  let ix = 0;
+  while (ix < xs.length - 2 && cx > xs[ix + 1]) ix++;
+  let iy = 0;
+  while (iy < ys.length - 2 && cy > ys[iy + 1]) iy++;
+  const fx = (cx - xs[ix]) / (xs[ix + 1] - xs[ix]);
+  const fy = (cy - ys[iy]) / (ys[iy + 1] - ys[iy]);
+  const z00 = BACK_GRID[iy][ix], z10 = BACK_GRID[iy][ix + 1];
+  const z01 = BACK_GRID[iy + 1][ix], z11 = BACK_GRID[iy + 1][ix + 1];
+  return (
+    z00 * (1 - fx) * (1 - fy) + z10 * fx * (1 - fy) +
+    z01 * (1 - fx) * fy + z11 * fx * fy
+  );
 }
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
@@ -227,11 +255,12 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       tex.anisotropy = 4;
       const bw = (backDimsRef.current.w || 28) / 100;
       const bh = (backDimsRef.current.h || 28) / 100;
-      const geo = new THREE.PlaneGeometry(bw, bh, 40, 8);
+      const geo = new THREE.PlaneGeometry(bw, bh, 44, 22);
       const pos = geo.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const lx = pos.getX(i);
-        pos.setZ(i, BACK_LIFT - surfaceZ(-lx));
+        const ly = pos.getY(i);
+        pos.setZ(i, BACK_LIFT - surfaceZ2(-lx, BACK_Y + ly));
       }
       geo.computeVertexNormals();
       const mat = new THREE.MeshStandardMaterial({
