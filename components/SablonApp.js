@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import MockupCanvas from "./MockupCanvas";
+import ShirtViewer3D from "./ShirtViewer3D";
 import GeneratePanel from "./GeneratePanel";
 import EditorCanvas from "./EditorCanvas";
 import PricingPanel from "./PricingPanel";
@@ -80,6 +81,7 @@ export default function SablonApp() {
   const frontIsLandscape =
     frontOrientation === "landscape" && frontPrint.wCm !== frontPrint.hCm;
   const [design, setDesign] = useState({ ...sampleBriefs[0], demo: true });
+  const [view3d, setView3d] = useState(false);
   const [showArea, setShowArea] = useState(false),
     [help, setHelp] = useState(false),
     [full, setFull] = useState(false);
@@ -315,6 +317,28 @@ export default function SablonApp() {
                 <div>
                   <span className="live-dot" /> {tr("previewTitle")}
                 </div>
+                <div
+                  className="view-toggle"
+                  role="group"
+                  aria-label={tr("viewModeLabel")}
+                >
+                  <button
+                    type="button"
+                    className={!view3d ? "seg active" : "seg"}
+                    aria-pressed={!view3d}
+                    onClick={() => setView3d(false)}
+                  >
+                    2D
+                  </button>
+                  <button
+                    type="button"
+                    className={view3d ? "seg active" : "seg"}
+                    aria-pressed={view3d}
+                    onClick={() => setView3d(true)}
+                  >
+                    3D
+                  </button>
+                </div>
                 <div>
                   <button
                     aria-label={tr("showArea")}
@@ -336,7 +360,23 @@ export default function SablonApp() {
                 </div>
               </div>
               <div className="mockup-stage">
-                <span className="view-label">{tr("viewFront")}</span>
+                {!view3d && (
+                  <span className="view-label">{tr("viewFront")}</span>
+                )}
+                {view3d && (
+                  <ShirtViewer3D
+                    artwork={
+                      tab === "editor"
+                        ? editedDesign || design.image
+                        : design.image
+                    }
+                    color={color.hex}
+                    t={tr}
+                  />
+                )}
+                {!view3d && (
+                  <>
+                
                 <MockupCanvas
                   ref={mockup}
                   artwork={
@@ -359,6 +399,8 @@ export default function SablonApp() {
                   {tr("mockupShop")} •{" "}
                   {design.demo !== false ? tr("artworkDemo") : tr("artworkMeta")}
                 </span>
+                  </>
+                )}
               </div>
               <ColourGroup
                 t={tr}

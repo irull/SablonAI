@@ -2256,3 +2256,40 @@ th { background: #f2f5fd; }
   border: 1px solid var(--line); border-radius: 14px;
   padding: 14px; display: grid; gap: 12px;
 }
+
+/* === Pratinjau 3D 2026-10-31 (bonus): toggle 2D/3D + viewer three.js === */
+.view-toggle {
+  display: inline-flex; gap: 2px; background: var(--soft);
+  border-radius: 999px; padding: 3px;
+}
+.view-toggle .seg {
+  padding: 5px 13px; border-radius: 999px; font: 800 12.5px Manrope, sans-serif;
+  color: var(--muted);
+}
+.view-toggle .seg.active { background: var(--navy); color: #fff; }
+:root[data-theme="dark"] .view-toggle .seg.active { background: var(--olive); }
+.viewer3d { position: relative; width: 100%; }
+.viewer3d-mount { width: 100%; height: 520px; }
+.viewer3d-mount canvas { display: block; border-radius: 14px; }
+.viewer3d-overlay {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  align-content: center; gap: 10px; color: var(--muted); font-size: 13px;
+}
+.viewer3d-bar {
+  position: absolute; left: 10px; right: 10px; bottom: 26px;
+  display: flex; justify-content: space-between; align-items: flex-end;
+  pointer-events: none;
+}
+.viewer3d-hint {
+  font-size: 11px; font-weight: 650; color: var(--muted);
+  background: var(--paper); border: 1px solid var(--line);
+  padding: 5px 9px; border-radius: 8px; opacity: 0.92;
+}
+.viewer3d-actions { display: flex; gap: 6px; pointer-events: auto; }
+.viewer3d-credit {
+  display: block; margin-top: 8px; font-size: 10.5px; color: var(--muted);
+  text-align: center;
+}
+@media (max-width: 720px) {
+  .viewer3d-mount { height: 400px; }
+}
