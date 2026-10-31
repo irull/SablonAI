@@ -92,14 +92,20 @@ export default function SablonApp() {
   const backIsLandscape = Boolean(
     backPrint && backOrientation === "landscape" && backPrint.wCm !== backPrint.hCm,
   );
-  const [design, setDesign] = useState({ ...sampleBriefs[0], demo: true });
+  const [designsBySide, setDesignsBySide] = useState({
+    front: { ...sampleBriefs[0], demo: true },
+    back: null,
+  });
   const [view3d, setView3d] = useState(false);
   const [side2d, setSide2d] = useState("front");
   const [showArea, setShowArea] = useState(false),
     [help, setHelp] = useState(false),
     [full, setFull] = useState(false);
   const [mode, setMode] = useState(config.demoMode ? "demo" : "live");
-  const [editedDesign, setEditedDesign] = useState(null);
+  const [editedBySide, setEditedBySide] = useState({ front: null, back: null });
+  const design = designsBySide.front;
+  const sideDesign = (side) => designsBySide[side] || designsBySide.front;
+  const sideArtwork = (side) => editedBySide[side] || sideDesign(side).image;
   const [editorOpened, setEditorOpened] = useState(false);
   // Perbaikan 2026-10-28: efek ini harus jalan setiap tab berubah,
   // bukan hanya saat mount (tab awal 'ai'), kalau tidak EditorCanvas
@@ -109,8 +115,8 @@ export default function SablonApp() {
   }, [tab]);
   const editor = useRef(null);
   const updateDesign = (d) => {
-    setDesign(d);
-    setEditedDesign(null);
+    setDesignsBySide((prev) => ({ ...prev, [side2d]: d }));
+    setEditedBySide((prev) => ({ ...prev, [side2d]: null }));
   };
   const mockup = useRef(null);
   const choose = (s) => {
@@ -153,7 +159,7 @@ export default function SablonApp() {
     if (tab === "editor" && !editor.current?.exportJSON()?.objects?.length)
       throw new Error("Tambahkan gambar atau teks sebelum membuat order.");
     const editorArtwork = tab === "editor" ? editor.current?.exportPNG() : null;
-    if (tab === "editor" && (!editorArtwork || editorArtwork !== editedDesign))
+    if (tab === "editor" && (!editorArtwork || editorArtwork !== editedBySide[side2d]))
       throw new Error(
         "Editor sedang memperbarui desain. Tunggu sebentar lalu simpan kembali.",
       );
@@ -163,8 +169,13 @@ export default function SablonApp() {
         "Mockup sedang diperbarui. Tunggu sebentar lalu simpan kembali.",
       );
     const artwork = await artworkDataURL(
-      tab === "editor" ? editorArtwork : design.image,
+      tab === "editor" && side2d === "front" ? editorArtwork : sideArtwork("front"),
     );
+    const backArtwork = backPrintId
+      ? await artworkDataURL(
+          tab === "editor" && side2d === "back" ? editorArtwork : sideArtwork("back"),
+        )
+      : null;
     const order = {
       ...details,
       id:
@@ -184,6 +195,7 @@ export default function SablonApp() {
       color,
       preview,
       artwork,
+      backArtwork,
       source: tab === "editor" ? "editor" : "generate",
       pricingIsExample: config.pricingIsExample,
       design: {
@@ -194,6 +206,7 @@ export default function SablonApp() {
         trace: design.trace || null,
       },
       editorJSON: tab === "editor" ? editor.current?.exportJSON() : null,
+      editorSide: tab === "editor" ? side2d : null,
     };
     const next = [order, ...readOrders(localStorage)];
     writeOrders(localStorage, next);
@@ -303,10 +316,13 @@ export default function SablonApp() {
           </section>
           <div className="studio-grid" hidden={tab === "dashboard" || tab === "katalog" || tab === "lacak"}>
             <div className="design-tools">
+              <p className="side-note">
+                {tr("designForSide")}: <strong>{side2d === "front" ? tr("viewFront") : tr("viewBack")}</strong>
+              </p>
               <div hidden={tab !== "ai"}>
                 <GeneratePanel
                   t={tr}
-                  design={design}
+                  design={sideDesign(side2d)}
                   onDesign={updateDesign}
                   onMode={setMode}
                 />
@@ -314,10 +330,11 @@ export default function SablonApp() {
               <div hidden={tab !== "editor"}>
                 {editorOpened && (
                   <EditorCanvas
+                    key={side2d}
                     t={tr}
                     ref={editor}
-                    initialImage={design.image}
-                    onChange={setEditedDesign}
+                    initialImage={sideArtwork(side2d)}
+                    onChange={(url) => setEditedBySide((prev) => ({ ...prev, [side2d]: url }))}
                     mode={mode}
                   />
                 )}
@@ -385,11 +402,10 @@ export default function SablonApp() {
                 )}
                 {view3d && (
                   <ShirtViewer3D
-                    artwork={
-                      tab === "editor"
-                        ? editedDesign || design.image
-                        : design.image
-                    }
+                    artwork={sideArtwork("front")}
+                    backArtwork={backPrintId ? sideArtwork("back") : null}
+                    backWidthCm={backDims ? backDims.wCm : 0}
+                    backHeightCm={backDims ? backDims.hCm : 0}
                     color={color.hex}
                     t={tr}
                   />
@@ -400,13 +416,7 @@ export default function SablonApp() {
                 <MockupCanvas
                   ref={mockup}
                   side={side2d}
-                  artwork={
-                    side2d === "back" && !backPrintId
-                      ? null
-                      : tab === "editor"
-                        ? editedDesign || design.image
-                        : design.image
-                  }
+                  artwork={side2d === "back" && !backPrintId ? null : sideArtwork(side2d)}
                   color={color.hex}
                   printWidth={side2d === "back" && backDims ? backDims.wCm : frontDims.wCm}
                   printHeight={side2d === "back" && backDims ? backDims.hCm : frontDims.hCm}

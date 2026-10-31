@@ -6,10 +6,17 @@ import { translate } from "../lib/i18n";
 // Area desain pada tekstur panel depan model (fraksi 0-1, y dari atas).
 // Bila posisi desain terlihat meleset, ubah angka ini saja.
 const PRINT_RECT = { x: 0.18, y: 0.06, w: 0.64, h: 0.62 };
+// Decal desain belakang: model tidak punya panel sablon belakang, jadi
+// desain belakang ditempel sebagai bidang tipis melengkung tepat di atas
+// permukaan punggung (z permukaan terukur sekitar -0,17 pada pita dada;
+// bidang di z -0,184, tepi menekuk ke depan mengikuti lengkung badan).
+const BACK_Y = 1.4;
+const BACK_Z = -0.184;
+const BACK_BEND = 0.6;
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
 
-export default function ShirtViewer3D({ artwork, color, t }) {
+export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, color, t }) {
   const tr = t || ((key, vars) => translate("id", key, vars));
   const mountRef = useRef(null);
   const world = useRef(null);
@@ -18,8 +25,12 @@ export default function ShirtViewer3D({ artwork, color, t }) {
   const autoRef = useRef(true);
   const artworkRef = useRef(artwork);
   const colorRef = useRef(color);
+  const backRef = useRef(backArtwork);
+  const backDimsRef = useRef({ w: backWidthCm, h: backHeightCm });
   artworkRef.current = artwork;
   colorRef.current = color;
+  backRef.current = backArtwork;
+  backDimsRef.current = { w: backWidthCm, h: backHeightCm };
 
   useEffect(() => {
     let alive = true;
@@ -72,6 +83,8 @@ export default function ShirtViewer3D({ artwork, color, t }) {
           controls,
           printMat: null,
           origMap: null,
+          backDecal: null,
+          THREE,
           fabricMats: [],
           home: null,
           tex: null,
@@ -130,6 +143,7 @@ export default function ShirtViewer3D({ artwork, color, t }) {
         loop();
         setStatus("ready");
         applyArtwork();
+        applyBack();
       } catch (e) {
         if (alive) setStatus("error");
       }
@@ -150,6 +164,7 @@ export default function ShirtViewer3D({ artwork, color, t }) {
             mats.forEach((m) => m?.dispose());
           }
         });
+        if (w.backDecal?.material?.map) w.backDecal.material.map.dispose();
         w.tex?.dispose();
         w.renderer?.dispose();
         w.renderer?.domElement?.remove();
@@ -158,6 +173,60 @@ export default function ShirtViewer3D({ artwork, color, t }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function applyBack() {
+    const w = world.current;
+    if (!w || !w.group) return;
+    if (w.backDecal) {
+      w.group.remove(w.backDecal);
+      w.backDecal.geometry.dispose();
+      if (w.backDecal.material.map) w.backDecal.material.map.dispose();
+      w.backDecal.material.dispose();
+      w.backDecal = null;
+    }
+    const src = backRef.current;
+    if (!src) return;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      if (!world.current || world.current !== w || !w.group) return;
+      const THREE = w.THREE;
+      const cv = document.createElement("canvas");
+      cv.width = 1024;
+      cv.height = 1024;
+      const cx = cv.getContext("2d");
+      const s = Math.min(1024 / img.width, 1024 / img.height);
+      cx.drawImage(img, (1024 - img.width * s) / 2, (1024 - img.height * s) / 2, img.width * s, img.height * s);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const geo = new THREE.PlaneGeometry(1, 1, 24, 1);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        pos.setZ(i, -BACK_BEND * x * x);
+      }
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        transparent: true,
+        alphaTest: 0.04,
+        roughness: 0.9,
+        metalness: 0,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      const bw = (backDimsRef.current.w || 28) / 100;
+      const bh = (backDimsRef.current.h || 28) / 100;
+      mesh.scale.set(bw, bh, bw);
+      mesh.position.set(0, BACK_Y, BACK_Z);
+      mesh.rotation.y = Math.PI;
+      w.group.add(mesh);
+      w.backDecal = mesh;
+    };
+    img.onerror = () => {};
+    img.src = src;
+  }
 
   function applyArtwork() {
     const w = world.current;
@@ -218,6 +287,10 @@ export default function ShirtViewer3D({ artwork, color, t }) {
     if (status === "ready") applyColor();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [color, status]);
+  useEffect(() => {
+    if (status === "ready") applyBack();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backArtwork, backWidthCm, backHeightCm, status]);
 
   function resetView() {
     const w = world.current;

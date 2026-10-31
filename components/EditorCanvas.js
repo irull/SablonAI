@@ -460,7 +460,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       .then((img) => {
         if (current !== generation.current || !canvas.current) return;
         canvas.current.clear();
-        const scale = Math.min(500 / img.width, 620 / img.height);
+        const scale = Math.min(540 / img.width, 660 / img.height);
         img.set({
           left: 300,
           top: 360,
@@ -485,7 +485,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const src = await normalizedUpload(file, tr),
         img = await fabric.current.FabricImage.fromURL(src);
       if (!canvas.current) return;
-      const scale = Math.min(480 / img.width, 560 / img.height);
+      const scale = Math.min(540 / img.width, 660 / img.height);
       img.set({ left: 300, top: 360, scaleX: scale, scaleY: scale });
       canvas.current.add(img);
       canvas.current.setActiveObject(img);

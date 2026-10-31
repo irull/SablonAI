@@ -283,6 +283,16 @@ export default function OrderDashboard({ orders, onStatus, onNew, error, t, lang
               >
                 <ArrowDownToLine size={15} /> Artwork
               </button>
+              {selected.backArtwork ? (
+                <button
+                  className="secondary"
+                  onClick={() =>
+                    download(selected.backArtwork, selected.id + "-artwork-belakang.png")
+                  }
+                >
+                  <ArrowDownToLine size={15} /> {tr("artworkBackBtn")}
+                </button>
+              ) : null}
               <button
                 className="secondary"
                 onClick={() => downloadJSON(selected, selected.id + ".json")}
