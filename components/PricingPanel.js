@@ -221,7 +221,7 @@ export default function PricingPanel({
         </div>
         <div>
           <dt>{tr("sumBack")}</dt>
-          <dd>{quote.backPrintLabel}</dd>
+          <dd>{quote.backPrintLabel ?? tr("noPrint")}</dd>
         </div>
       </dl>
       <button

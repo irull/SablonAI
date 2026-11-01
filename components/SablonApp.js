@@ -406,6 +406,8 @@ export default function SablonApp() {
                     backArtwork={backPrintId ? sideArtwork("back") : null}
                     backWidthCm={backDims ? backDims.wCm : 0}
                     backHeightCm={backDims ? backDims.hCm : 0}
+                    frontWidthCm={frontDims.wCm}
+                    frontHeightCm={frontDims.hCm}
                     color={color.hex}
                     t={tr}
                   />

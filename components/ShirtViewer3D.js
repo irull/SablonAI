@@ -3,9 +3,19 @@ import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, RefreshCcw, RotateCw } from "lucide-react";
 import { translate } from "../lib/i18n";
 
-// Area desain pada tekstur panel depan model (fraksi 0-1, y dari atas).
-// Bila posisi desain terlihat meleset, ubah angka ini saja.
-const PRINT_RECT = { x: 0.18, y: 0.06, w: 0.64, h: 0.62 };
+// Pemetaan tekstur panel depan, terukur dari UV model: sampledU =
+// 0.50007 + 3.5325 * xDunia dan sampledV = 5.2214 - 3.4411 * yDunia,
+// jadi 1 meter dunia = 3.5325 fraksi tekstur (u) / 3.4411 (v), dan pusat
+// tekstur tepat di pusat panel dada (panel sekitar 29,6 x 29,8 cm).
+// Ukuran sablon depan (cm) diubah ke rect tekstur dari angka ini,
+// sehingga A4 tampil 21x28 cm sungguhan seperti mockup 2D.
+const FRONT_U_PER_M = 3.5325;
+const FRONT_V_PER_M = 3.4411;
+function frontPrintRect(widthCm, heightCm) {
+  const w = Math.min(0.999, Math.max(0.05, ((widthCm || 21) / 100) * FRONT_U_PER_M));
+  const h = Math.min(0.999, Math.max(0.05, ((heightCm || 28) / 100) * FRONT_V_PER_M));
+  return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
+}
 // Decal desain belakang: model tidak punya panel sablon belakang, jadi
 // desain belakang ditempel sebagai bidang tipis melengkung tepat di atas
 // permukaan punggung (z permukaan terukur sekitar -0,17 pada pita dada;
@@ -69,7 +79,7 @@ function surfaceZ2(x, y) {
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
 
-export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, color, t }) {
+export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, color, t }) {
   const tr = t || ((key, vars) => translate("id", key, vars));
   const mountRef = useRef(null);
   const world = useRef(null);
@@ -81,10 +91,12 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   const colorRef = useRef(color);
   const backRef = useRef(backArtwork);
   const backDimsRef = useRef({ w: backWidthCm, h: backHeightCm });
+  const frontDimsRef = useRef({ w: frontWidthCm, h: frontHeightCm });
   artworkRef.current = artwork;
   colorRef.current = color;
   backRef.current = backArtwork;
   backDimsRef.current = { w: backWidthCm, h: backHeightCm };
+  frontDimsRef.current = { w: frontWidthCm, h: frontHeightCm };
 
   useEffect(() => {
     let alive = true;
@@ -309,10 +321,11 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       canvas.width = TEX_SIZE;
       canvas.height = TEX_SIZE;
       const cx = canvas.getContext("2d");
-      const rx = PRINT_RECT.x * TEX_SIZE;
-      const ry = PRINT_RECT.y * TEX_SIZE;
-      const rw = PRINT_RECT.w * TEX_SIZE;
-      const rh = PRINT_RECT.h * TEX_SIZE;
+      const rect = frontPrintRect(frontDimsRef.current.w, frontDimsRef.current.h);
+      const rx = rect.x * TEX_SIZE;
+      const ry = rect.y * TEX_SIZE;
+      const rw = rect.w * TEX_SIZE;
+      const rh = rect.h * TEX_SIZE;
       const scale = Math.min(rw / img.width, rh / img.height);
       const dw = img.width * scale;
       const dh = img.height * scale;
@@ -361,7 +374,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   useEffect(() => {
     if (status === "ready") applyArtwork();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artwork, status]);
+  }, [artwork, frontWidthCm, frontHeightCm, status]);
   useEffect(() => {
     if (status === "ready") applyColor();
     // eslint-disable-next-line react-hooks/exhaustive-deps
