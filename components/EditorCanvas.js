@@ -730,52 +730,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           </div>
         </div>
       )}
-      <div className="element-tools">
-        <div className="field-label">{tr("templatesTitle")}</div>
-        <div className="template-grid">
-          {TEMPLATES.map((tpl) => (
-            <button
-              key={tpl.id}
-              type="button"
-              className="template-card"
-              disabled={!ready || !!busy}
-              onClick={() => applyTemplate(tpl)}
-            >
-              <span style={{ fontFamily: tpl.font }}>{tpl.title}</span>
-              <small>{tpl.name}</small>
-            </button>
-          ))}
-        </div>
-        <div className="field-label">{tr("shapesTitle")}</div>
-        <div className="shape-row">
-          {SHAPE_IDS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              className="secondary mini-btn"
-              disabled={!ready || !!busy}
-              onClick={() => addShape(id)}
-            >
-              {tr("shp" + id[0].toUpperCase() + id.slice(1))}
-            </button>
-          ))}
-        </div>
-        <div className="field-label">{tr("clipartTitle")}</div>
-        <div className="clipart-grid">
-          {CLIPARTS.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className="clipart-btn"
-              title={c.label}
-              aria-label={c.label}
-              disabled={!ready || !!busy}
-              onClick={() => addClipart(c)}
-              dangerouslySetInnerHTML={{ __html: c.svg }}
-            />
-          ))}
-        </div>
-      </div>
       <div className="editor-canvas-shell">
         <canvas ref={element} aria-label={tr("canvasLabel")} />
       </div>
@@ -911,6 +865,52 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         )}
       </div>
       <p className="small-note">{tr("editorHint")}</p>
+      <div className="element-tools">
+        <div className="field-label">{tr("templatesTitle")}</div>
+        <div className="template-grid">
+          {TEMPLATES.map((tpl) => (
+            <button
+              key={tpl.id}
+              type="button"
+              className="template-card"
+              disabled={!ready || !!busy}
+              onClick={() => applyTemplate(tpl)}
+            >
+              <span style={{ fontFamily: tpl.font }}>{tpl.title}</span>
+              <small>{tpl.name}</small>
+            </button>
+          ))}
+        </div>
+        <div className="field-label">{tr("shapesTitle")}</div>
+        <div className="shape-row">
+          {SHAPE_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              className="secondary mini-btn"
+              disabled={!ready || !!busy}
+              onClick={() => addShape(id)}
+            >
+              {tr("shp" + id[0].toUpperCase() + id.slice(1))}
+            </button>
+          ))}
+        </div>
+        <div className="field-label">{tr("clipartTitle")}</div>
+        <div className="clipart-grid">
+          {CLIPARTS.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="clipart-btn"
+              title={c.label}
+              aria-label={c.label}
+              disabled={!ready || !!busy}
+              onClick={() => addClipart(c)}
+              dangerouslySetInnerHTML={{ __html: c.svg }}
+            />
+          ))}
+        </div>
+      </div>
       <div className="background-tools">
         <label className="field-label" htmlFor="subject">
           {tr("subjectLabel")}
