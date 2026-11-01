@@ -2300,3 +2300,261 @@ th { background: #f2f5fd; }
 /* Catatan sisi yang sedang didesain */
 .side-note { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
 .side-note strong { color: var(--olive); letter-spacing: 0.06em; }
+
+/* ============================================================
+   Section 3 — Studio DIY 1 layar + Beranda (Nov 2026)
+   Mengikuti tata letak Sablon Studio (Codex): rail ikon + panel
+   alat kiri (layer selalu tampil), panggung tengah (Kanvas / 2D /
+   3D), panel kanan produk + harga. Warna tetap memakai variabel
+   tema SablonAI (navy/ungu) supaya dark mode ikut bekerja.
+   ============================================================ */
+.studio-heading {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; margin: 4px 0 16px; flex-wrap: wrap;
+}
+.studio-heading h2 { font: 700 27px Manrope, sans-serif; letter-spacing: -1px; margin: 6px 0 0; }
+.studio-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.studio-actions button {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+  padding: 9px 13px; border-radius: 10px; font-weight: 650; font-size: 12.5px; cursor: pointer;
+}
+.studio-actions button:hover { border-color: var(--olive); color: var(--olive); }
+.studio-msg { color: var(--olive); font-size: 12.5px; font-weight: 700; }
+.studio-shell {
+  position: relative;
+  display: grid; gap: 14px;
+  grid-template-columns: 60px 268px minmax(0, 1fr) 302px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "rail tools stage settings" "rail tools stagebottom settings";
+  height: calc(100vh - 232px); min-height: 640px;
+}
+.tool-rail {
+  grid-area: rail; display: flex; flex-direction: column; gap: 4px;
+  background: var(--soft); border: 1px solid var(--line); border-radius: 16px;
+  padding: 10px 6px; overflow-y: auto;
+}
+.tool-rail-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 11px 2px; border: 0; background: transparent; border-radius: 12px;
+  color: var(--muted); font-size: 9.5px; font-weight: 700; cursor: pointer;
+}
+.tool-rail-btn:hover { color: var(--ink); }
+.tool-rail-btn.active { background: var(--paper); color: var(--olive); box-shadow: inset 3px 0 var(--olive); }
+.ec-root { display: contents; }
+.ec-tools {
+  grid-area: tools; overflow-y: auto; padding: 16px 14px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.ec-tools .brief-panel { border: 0; box-shadow: none; padding: 0; background: transparent; border-radius: 0; }
+.ec-tools .layers-panel { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; }
+.tool-title { font: 700 17px Manrope, sans-serif; letter-spacing: -.4px; margin: 2px 0 6px; }
+.ref-block { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
+.upload-zone.compact { padding: 12px; }
+.ref-preview img {
+  width: 100%; max-height: 140px; object-fit: contain;
+  background: var(--soft); border-radius: 10px;
+}
+.ref-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg-row {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  background: var(--soft); padding: 3px; border-radius: 999px; margin: 6px 0;
+}
+.seg-btn {
+  flex: 1; padding: 6px 8px; border: 0; background: transparent; border-radius: 999px;
+  font: 700 11.5px Manrope, sans-serif; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.seg-btn.on { background: var(--navy); color: #fff; }
+:root[data-theme="dark"] .seg-btn.on { background: var(--olive); }
+.ec-stage {
+  grid-area: stage; display: flex; flex-direction: column; gap: 10px;
+  background-color: var(--soft);
+  background-image: radial-gradient(var(--line) 1.1px, transparent 1.1px);
+  background-size: 18px 18px;
+  border: 1px solid var(--line); border-radius: 16px; padding: 16px; overflow: hidden;
+}
+.ec-stage .editor-canvas-shell {
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; box-shadow: none;
+}
+.ec-stage .canvas-container { margin: 0 auto; }
+.ec-stage.stage-hidden {
+  position: absolute; visibility: hidden; pointer-events: none;
+  width: min(620px, 92vw); left: 200px; top: 0;
+}
+.stage-panel { grid-area: stage; display: flex; flex-direction: column; overflow: hidden; }
+.stage-panel.stage-off { display: none; }
+.stage-top {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; font: 700 12px Manrope, sans-serif; letter-spacing: .08em;
+}
+.stage-top > div { display: flex; align-items: center; gap: 6px; }
+.stage-panel .mockup-stage { flex: 1; }
+.mockup-keeper { position: absolute; left: -9999px; top: 0; visibility: hidden; pointer-events: none; }
+.stage-bottom {
+  grid-area: stagebottom; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px; padding: 2px 4px; flex-wrap: wrap;
+}
+.stage-hint { font-size: 11.5px; color: var(--muted); text-align: center; flex: 1; }
+.view-toggle .seg.on { background: var(--navy); color: #fff; }
+:root[data-theme="dark"] .view-toggle .seg.on { background: var(--olive); }
+.studio-side-note { margin-top: 10px; }
+
+/* Panel kanan v2 */
+.studio-settings { grid-area: settings; overflow-y: auto; padding: 18px; }
+.settings-product { font: 800 20px Manrope, sans-serif; letter-spacing: -.5px; margin: 8px 0 12px; }
+.settings-select {
+  width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--paper); color: var(--ink); font-size: 13px; margin-bottom: 12px;
+}
+.studio-settings .label-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.link-button {
+  background: none; border: 0; color: var(--olive); font-weight: 700;
+  font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0;
+}
+.size-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 14px; }
+.size-pill {
+  padding: 8px 10px; border: 1px solid var(--line); background: var(--paper);
+  border-radius: 10px; font-weight: 700; font-size: 12px; color: var(--ink);
+  cursor: pointer; flex: 1 1 auto;
+}
+.size-pill.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+:root[data-theme="dark"] .size-pill.on { background: var(--olive); border-color: var(--olive); }
+.check-row { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 13px; margin: 10px 0 4px; cursor: pointer; }
+.check-row input { width: 17px; height: 17px; accent-color: var(--olive); }
+.qty-stepper {
+  display: inline-flex; align-items: center; gap: 14px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px; margin-bottom: 14px;
+}
+.qty-stepper button { border: 0; background: transparent; font-size: 18px; cursor: pointer; color: var(--ink); padding: 2px 6px; }
+.qty-stepper output { font-weight: 800; min-width: 22px; text-align: center; }
+.price-box-v2 { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; }
+.price-line { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; margin-bottom: 9px; }
+.price-line b { font-weight: 600; white-space: nowrap; }
+.price-box-v2 hr { border: 0; border-top: 1px dashed var(--line); margin: 12px 0; }
+.price-line.total { font-size: 13px; align-items: baseline; }
+.price-line.total small { display: block; color: var(--muted); font-size: 10px; letter-spacing: .06em; margin-top: 3px; }
+.price-line.total strong { font-size: 22px; letter-spacing: -.5px; white-space: nowrap; }
+.price-note { font-size: 10.5px; color: var(--muted); text-align: right; }
+.studio-settings .order-form { display: grid; gap: 8px; }
+
+/* Galeri desain (panel Gambar) */
+.design-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.design-card {
+  border: 1px solid var(--line); background: var(--paper); border-radius: 12px;
+  padding: 8px; cursor: pointer; display: grid; gap: 6px; justify-items: center;
+}
+.design-card:hover { border-color: var(--olive); }
+.design-card img { width: 100%; height: 84px; object-fit: contain; }
+.design-card span {
+  font-size: 10.5px; color: var(--muted); font-weight: 600; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.stock-search { display: flex; gap: 6px; margin-top: 8px; }
+.stock-search input { flex: 1; min-width: 0; }
+
+/* Beranda */
+.home-hero {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
+  align-items: center; padding: 22px 4px 32px;
+}
+.home-hero h1 { font: 600 clamp(38px, 4.6vw, 62px)/1.12 Manrope, sans-serif; letter-spacing: -2px; margin: 18px 0 16px; }
+.home-hero h1 em { font-family: Georgia, serif; font-weight: 400; color: var(--olive); }
+.hero-copy > p { color: var(--muted); font-size: 15px; line-height: 1.8; max-width: 52ch; }
+.hero-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--olive); display: inline-block; }
+.hero-actions { display: flex; gap: 22px; align-items: center; margin: 24px 0 4px; flex-wrap: wrap; }
+.hero-note { font-size: 11.5px; color: var(--muted); display: flex; gap: 9px; align-items: center; margin-top: 20px; }
+.hero-note span { color: var(--olive); font-size: 20px; }
+.hero-art {
+  position: relative; border-radius: 18px; overflow: hidden;
+  background: var(--soft); border: 1px solid var(--line); min-height: 380px;
+}
+.hero-photo { width: 100%; height: 100%; max-height: 470px; object-fit: cover; object-position: top center; display: block; }
+.float-tag {
+  position: absolute; background: var(--paper); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 8px 22px rgba(10, 13, 40, .10);
+  padding: 10px 12px; font-size: 11px; color: var(--ink);
+}
+.float-tag.tag-ai { left: 16px; top: 108px; transform: rotate(-6deg); display: flex; gap: 9px; align-items: center; color: var(--olive); }
+.float-tag.tag-ai span { color: var(--ink); line-height: 1.45; }
+.float-tag.tag-colors { right: 16px; bottom: 66px; transform: rotate(4deg); }
+.float-tag.tag-colors > div { display: flex; gap: 5px; margin-top: 7px; }
+.float-tag.tag-colors i { width: 19px; height: 19px; border-radius: 50%; border: 1px solid var(--line); }
+.round-stamp {
+  position: absolute; right: 18px; top: 24px; width: 86px; height: 86px; border-radius: 50%;
+  background: var(--navy); color: #e8edff; display: flex; flex-direction: column;
+  justify-content: center; text-align: center; font-size: 8.5px; letter-spacing: 1px;
+  line-height: 1.6; transform: rotate(12deg);
+}
+:root[data-theme="dark"] .round-stamp { background: var(--olive); }
+.ticker {
+  background: var(--navy); color: #dfe6ff; overflow: hidden;
+  border-radius: 12px; height: 46px; display: flex; align-items: center;
+}
+:root[data-theme="dark"] .ticker { background: #1c2148; }
+.ticker-track { display: flex; white-space: nowrap; animation: ticker-move 32s linear infinite; }
+.ticker-track span { font-size: 10.5px; letter-spacing: 2px; padding-right: 16px; }
+@keyframes ticker-move { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.home-collection { padding: 36px 4px 6px; }
+.section-top { display: flex; justify-content: space-between; align-items: end; gap: 14px; margin-bottom: 20px; }
+.section-top > span { font-size: 11.5px; color: var(--muted); }
+.section-top h2, .home-how h2 { font: 600 28px Manrope, sans-serif; letter-spacing: -1px; margin: 10px 0 0; }
+.products-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.product-card .product-image {
+  position: relative; border-radius: 14px; height: 225px; overflow: hidden;
+  background: var(--soft); border: 1px solid var(--line); display: grid; place-items: center;
+}
+.product-card .product-image img { max-width: 82%; max-height: 82%; object-fit: contain; transition: transform .3s; }
+.product-card .product-image img[src*="mockup-kaos"] {
+  width: 100%; height: 100%; max-width: none; max-height: none; object-fit: cover; object-position: top center;
+}
+.product-card:hover .product-image img { transform: scale(1.05); }
+.product-card .product-image .badge {
+  position: absolute; top: 12px; left: 12px; background: var(--paper); padding: 4px 8px;
+  border-radius: 6px; font-size: 8.5px; letter-spacing: .8px; font-weight: 700; z-index: 2; color: var(--ink);
+}
+.product-card h3 { font-size: 14.5px; margin: 14px 0 5px; }
+.product-card .desc { font-size: 11.5px; color: var(--muted); min-height: 30px; }
+.product-bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.product-bottom b { font-size: 14px; }
+.product-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.mini-btn { padding: 7px 10px; font-size: 11.5px; border-radius: 9px; }
+.home-how {
+  border-top: 1px solid var(--line); margin-top: 34px; padding: 28px 4px 8px;
+  display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 34px;
+}
+.home-how article b { color: var(--olive); font-size: 12px; }
+.home-how h3 { font-size: 15px; margin: 14px 0 8px; }
+.home-how p { font-size: 12.5px; line-height: 1.75; color: var(--muted); }
+.wa-cta { margin-top: 18px; display: inline-flex; gap: 8px; align-items: center; text-decoration: none; }
+
+@media (max-width: 1280px) {
+  .studio-shell { grid-template-columns: 54px 234px minmax(0, 1fr) 266px; }
+}
+@media (max-width: 1080px) {
+  .studio-shell {
+    grid-template-columns: 54px 234px minmax(0, 1fr);
+    grid-template-areas: "rail tools stage" "rail tools stagebottom" "settings settings settings";
+    height: auto;
+  }
+  .ec-stage { min-height: 560px; }
+  .studio-settings { overflow: visible; }
+  .products-grid { grid-template-columns: 1fr 1fr; }
+  .home-how { grid-template-columns: 1fr 1fr; }
+  .home-hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .studio-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "stage" "stagebottom" "rail" "tools" "settings";
+    height: auto;
+  }
+  .tool-rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
+  .tool-rail-btn { flex: 1; box-shadow: none; }
+  .tool-rail-btn.active { box-shadow: inset 0 -3px var(--olive); }
+  .ec-tools { overflow: visible; }
+  .ec-stage { min-height: 480px; }
+  .stage-hint { display: none; }
+  .home-how { grid-template-columns: 1fr; }
+  .section-top > span { display: none; }
+}

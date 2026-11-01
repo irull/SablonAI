@@ -314,6 +314,37 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     const w = world.current;
     if (!w || !w.printMat) return;
     const THREE = w.THREE;
+    if (!artworkRef.current) {
+      // Front print is off: clear the print texture back to transparent so
+      // the 3D shirt matches the unchecked "print this side" state.
+      const blank = document.createElement("canvas");
+      blank.width = 4;
+      blank.height = 4;
+      const tex = new THREE.CanvasTexture(blank);
+      tex.flipY = false;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const orig = w.origMap;
+      if (orig) {
+        tex.repeat.copy(orig.repeat);
+        tex.offset.copy(orig.offset);
+        tex.center.copy(orig.center);
+        tex.rotation = orig.rotation;
+        tex.wrapS = orig.wrapS;
+        tex.wrapT = orig.wrapT;
+        tex.matrixAutoUpdate = orig.matrixAutoUpdate;
+        if (!tex.matrixAutoUpdate) tex.matrix.copy(orig.matrix);
+      }
+      if (w.tex) w.tex.dispose();
+      w.tex = tex;
+      w.printMat.map = tex;
+      w.printMat.color.set("#ffffff");
+      w.printMat.needsUpdate = true;
+      if (!readyOnce.current) {
+        readyOnce.current = true;
+        setStatus("ready");
+      }
+      return;
+    }
     const img = new Image();
     img.onload = () => {
       if (!world.current) return;

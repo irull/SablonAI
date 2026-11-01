@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import { metaRequest } from "../lib/api";
 import { translate } from "../lib/i18n";
+import GeneratePanel from "./GeneratePanel";
+import DesignGallery from "./DesignGallery";
 
 const FONTS = [
   "Arial",
@@ -88,7 +90,18 @@ async function normalizedUpload(file, tr) {
   }
 }
 const EditorCanvas = forwardRef(function EditorCanvas(
-  { initialImage, onChange, mode, t },
+  {
+    initialImage,
+    onChange,
+    mode,
+    t,
+    tool = "upload",
+    stageHidden = false,
+    aiDesign,
+    onAiDesign,
+    onAiMode,
+    onRevealMockup,
+  },
   ref,
 ) {
   const tr = t || ((key, vars) => translate("id", key, vars));
@@ -113,6 +126,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     [hist, setHist] = useState({ u: 0, r: 0 });
   const [font, setFont] = useState("Arial"),
     [objProps, setObjProps] = useState(null);
+  // Studio DIY (Nov 2026): bentuk teks (lurus / lengkung atas / lengkung
+  // bawah / melingkar) dan gambar referensi untuk panel AI.
+  const [textShape, setTextShape] = useState("straight");
+  const [refData, setRefData] = useState(null);
+  const refFileInput = useRef(null);
   const zoomRef = useRef(1),
     undoStack = useRef([]),
     redoStack = useRef([]),
@@ -150,6 +168,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     c.requestRenderAll();
   }
   function layerLabel(obj) {
+    if (obj.__arc) return tr("layerArcText");
     if (["textbox", "i-text", "text"].includes(obj.type))
       return (obj.text || tr("layerText")).slice(0, 22);
     if (obj.type === "image") return tr("layerImage");
@@ -311,6 +330,126 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     c.requestRenderAll();
     emit();
   }
+  // --- Teks melengkung -------------------------------------------------
+  // fabric.js tidak punya teks mengikuti jalur, jadi teks lengkung
+  // dibangun sebagai grup berisi satu objek Text per huruf yang
+  // diletakkan di sepanjang busur lingkaran. Metadata asal disimpan di
+  // obj.__arc supaya panel Font bisa membangun ulang grupnya saat isi,
+  // font, warna, atau bentuk diganti. Catatan: __arc tidak ikut
+  // terserialisasi di toJSON bawaan fabric, jadi setelah undo /
+  // simpan-buka, grup lengkung tetap tampil benar tetapi tidak lagi
+  // bisa diedit parametrik (harus dibuat ulang). Diterima untuk v1.
+  function buildArcGroup({ text, fontFamily, fill, fontSize, shape }) {
+    const f = fabric.current;
+    const chars = [...text];
+    const gap = fontSize * 0.14;
+    const items = chars.map(
+      (ch) =>
+        new f.Text(ch === " " ? " " : ch, {
+          fontSize,
+          fontFamily,
+          fontWeight: "bold",
+          fill,
+        }),
+    );
+    const widths = items.map((o) => o.width || fontSize * 0.6);
+    const total = widths.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
+    let radius;
+    if (shape === "circle")
+      radius = Math.max(95, total / (2 * Math.PI) + fontSize * 0.45);
+    else radius = Math.max(150, total * 0.8);
+    const totalAngle = shape === "circle" ? Math.PI * 2 : total / radius;
+    let cursor = -totalAngle / 2;
+    items.forEach((o, i) => {
+      if (i > 0) cursor += gap / radius;
+      const step = widths[i] / radius;
+      const a = cursor + step / 2;
+      cursor += step;
+      const deg = (a * 180) / Math.PI;
+      let x, y, rot;
+      if (shape === "arcDown") {
+        x = radius * Math.sin(a);
+        y = radius * Math.cos(a);
+        rot = -deg;
+      } else {
+        x = radius * Math.sin(a);
+        y = -radius * Math.cos(a);
+        rot = deg;
+      }
+      o.set({ left: x, top: y, angle: rot, originX: "center", originY: "center" });
+    });
+    const grp = new f.Group(items, {
+      cornerColor: "#3442CA",
+      borderColor: "#3442CA",
+      transparentCorners: false,
+    });
+    grp.__arc = { text, fontFamily, fill, fontSize, shape };
+    return grp;
+  }
+  function regenerateArc(obj, patch) {
+    const c = canvas.current;
+    if (!c || !obj.__arc) return;
+    const meta = { ...obj.__arc, ...patch };
+    const next = buildArcGroup(meta);
+    next.set({
+      left: obj.left,
+      top: obj.top,
+      angle: obj.angle,
+      scaleX: obj.scaleX,
+      scaleY: obj.scaleY,
+    });
+    c.remove(obj);
+    c.add(next);
+    next.setCoords();
+    c.setActiveObject(next);
+    c.requestRenderAll();
+    refreshLayers(c);
+    emit();
+  }
+  function activeArc() {
+    const o = canvas.current?.getActiveObject();
+    return o && o.__arc ? o : null;
+  }
+  // --- Gambar dari URL (galeri desain / stok / referensi) --------------
+  async function addImageFromURL(url) {
+    if (!ready || !fabric.current || !url) return;
+    setError("");
+    try {
+      const img = await fabric.current.FabricImage.fromURL(url, {
+        crossOrigin: "anonymous",
+      });
+      if (!canvas.current) return;
+      const scale = Math.min(540 / img.width, 660 / img.height);
+      img.set({
+        left: 300,
+        top: 360,
+        scaleX: scale,
+        scaleY: scale,
+        cornerColor: "#3442CA",
+        borderColor: "#3442CA",
+        transparentCorners: false,
+      });
+      canvas.current.add(img);
+      canvas.current.setActiveObject(img);
+      canvas.current.requestRenderAll();
+      emit();
+      setMessage(tr("msgUploaded"));
+    } catch {
+      setError(tr("errImageRead"));
+    }
+  }
+  async function loadJSON(json) {
+    const c = canvas.current;
+    if (!c || !json) return;
+    historyLock.current = true;
+    try {
+      await c.loadFromJSON(json);
+    } catch {}
+    historyLock.current = false;
+    c.requestRenderAll();
+    refreshLayers(c);
+    emit();
+  }
   function addShape(kind) {
     if (!ready || !fabric.current) return;
     const f = fabric.current;
@@ -399,6 +538,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   useImperativeHandle(ref, () => ({
     exportJSON: () => canvas.current?.toObject(),
     exportPNG: () => capturePNG(),
+    loadJSON: (json) => loadJSON(json),
+    addImageURL: (url) => addImageFromURL(url),
   }));
   useEffect(() => {
     let alive = true,
@@ -425,6 +566,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           setObjProps(readProps(instance));
           if (o && ["textbox", "i-text", "text"].includes(o.type) && o.fontFamily)
             setFont(o.fontFamily);
+          if (o && o.__arc) {
+            setText(o.__arc.text);
+            setFont(o.__arc.fontFamily);
+            setTextColor(o.__arc.fill);
+            setTextShape(o.__arc.shape);
+          }
         };
         instance.on("selection:created", selection);
         instance.on("selection:updated", selection);
@@ -509,6 +656,32 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }
   function addText() {
     if (!ready || !text.trim()) return;
+    const arc = activeArc();
+    if (textShape !== "straight") {
+      if (arc) {
+        regenerateArc(arc, {
+          text: text.trim(),
+          fontFamily: font,
+          fill: textColor,
+          shape: textShape,
+        });
+        return;
+      }
+      const grp = buildArcGroup({
+        text: text.trim(),
+        fontFamily: font,
+        fill: textColor,
+        fontSize: 54,
+        shape: textShape,
+      });
+      grp.set({ left: 300, top: 360 });
+      canvas.current.add(grp);
+      grp.setCoords();
+      canvas.current.setActiveObject(grp);
+      canvas.current.requestRenderAll();
+      emit();
+      return;
+    }
     const obj = new fabric.current.Textbox(text.trim(), {
       left: 300,
       top: 360,
@@ -607,367 +780,497 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     a.click();
   }
   return (
-    <section className="editor-panel card">
-      <div className="panel-heading">
-        <span className="icon-tile">
-          <SlidersIcon />
-        </span>
-        <div>
-          <h2>{tr("edTitle")}</h2>
-          <p>{tr("edSub")}</p>
-        </div>
-      </div>
-      <input
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        ref={fileInput}
-        className="visually-hidden"
-        aria-label={tr("pickFile")}
-        onChange={(e) => upload(e.target.files[0])}
-      />
-      <button
-        className="upload-zone"
-        disabled={!ready || !!busy}
-        onClick={() => fileInput.current?.click()}
-      >
-        <ImagePlus size={24} />
-        <strong>{tr("uploadTitle")}</strong>
-        <span>{tr("uploadHint")}</span>
-      </button>
-      <div className="text-add">
-        <label className="field-label" htmlFor="editor-text">
-          {tr("addText")}
-        </label>
-        <div>
-          <input
-            id="editor-text"
-            maxLength={140}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <input
-            aria-label={tr("textColor")}
-            type="color"
-            value={textColor}
-            onChange={(e) => {
-              setTextColor(e.target.value);
-              const o = canvas.current?.getActiveObject();
-              if (o && ["textbox", "i-text", "text"].includes(o.type)) {
-                o.set("fill", e.target.value);
-                canvas.current.requestRenderAll();
-                emit();
-              }
-            }}
-          />
-          <select
-            className="font-select"
-            aria-label={tr("fontLabel")}
-            value={font}
-            onChange={(e) => {
-              setFont(e.target.value);
-              const o = canvas.current?.getActiveObject();
-              if (o && ["textbox", "i-text", "text"].includes(o.type)) {
-                o.set("fontFamily", e.target.value);
-                canvas.current.requestRenderAll();
-                emit();
-              }
-            }}
-          >
-            {FONTS.map((f) => (
-              <option key={f} value={f} style={{ fontFamily: f }}>
-                {f}
-              </option>
-            ))}
-          </select>
-          <button
-            className="icon-button"
-            aria-label={tr("addTextCanvas")}
-            disabled={!ready || !!busy}
-            onClick={addText}
-          >
-            <Type size={19} />
-          </button>
-        </div>
-      </div>
-      {objProps && (
-        <div className="text-props">
-          {objProps.isText && (
-            <div className="prop-row">
-              <span>{tr("spacingLabel")}</span>
-              <input
-                type="range"
-                min="-20"
-                max="300"
-                step="5"
-                value={objProps.charSpacing}
-                onChange={(e) => applyProp("charSpacing", Number(e.target.value))}
-              />
-            </div>
-          )}
-          {objProps.isText && (
-            <div className="prop-row">
-              <span>{tr("strokeLabel")}</span>
-              <input
-                type="range"
-                min="0"
-                max="2.5"
-                step="0.1"
-                value={objProps.strokeWidth}
-                onChange={(e) => applyProp("strokeWidth", Number(e.target.value))}
-              />
-            </div>
-          )}
-          <div className="prop-row">
-            <span>{tr("opacityLabel")}</span>
-            <input
-              type="range"
-              min="10"
-              max="100"
-              step="5"
-              value={objProps.opacity}
-              onChange={(e) => applyProp("opacity", Number(e.target.value))}
+    <div className="ec-root">
+      <div className="ec-tools card">
+        {tool === "ai" && (
+          <div className="tool-section">
+            <GeneratePanel
+              t={tr}
+              design={aiDesign}
+              onDesign={(d) => {
+                if (onAiDesign) onAiDesign(d);
+                if (onRevealMockup) onRevealMockup();
+              }}
+              onMode={(m) => {
+                if (onAiMode) onAiMode(m);
+              }}
             />
+            <div className="ref-block">
+              <div className="field-label">{tr("refTitle")}</div>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                ref={refFileInput}
+                className="visually-hidden"
+                aria-label={tr("refPick")}
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  setError("");
+                  try {
+                    const src = await normalizedUpload(file, tr);
+                    setRefData({ src, name: file.name });
+                  } catch (err) {
+                    setError(err.message);
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="upload-zone compact"
+                disabled={!!busy}
+                onClick={() => refFileInput.current?.click()}
+              >
+                <ImagePlus size={20} />
+                <strong>{tr("refPick")}</strong>
+              </button>
+              {refData && (
+                <div className="ref-preview">
+                  <img src={refData.src} alt={refData.name} />
+                  <p className="small-note">
+                    {tr("refChosen", { name: refData.name })}
+                  </p>
+                  <div className="ref-actions">
+                    <button
+                      type="button"
+                      className="secondary mini-btn"
+                      onClick={() => {
+                        if (onAiDesign)
+                          onAiDesign({
+                            id: "referensi",
+                            title: refData.name,
+                            image: refData.src,
+                            brief: "",
+                            prompt: "",
+                            demo: true,
+                          });
+                        if (onRevealMockup) onRevealMockup();
+                      }}
+                    >
+                      {tr("refUseAsDesign")}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary mini-btn"
+                      onClick={() => addImageFromURL(refData.src)}
+                    >
+                      {tr("refToCanvas")}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <p className="small-note">{tr("refHint")}</p>
+            </div>
           </div>
-        </div>
-      )}
-      <div className="editor-canvas-shell">
-        <canvas ref={element} aria-label={tr("canvasLabel")} />
-      </div>
-      <div className="zoom-bar">
-        <button
-          type="button"
-          className="icon-button mini"
-          aria-label={tr("zoomOut")}
-          disabled={!ready}
-          onClick={() => applyZoom(zoomRef.current - 0.1)}
-        >
-          <Minus size={15} />
-        </button>
-        <input
-          type="range"
-          min="50"
-          max="200"
-          step="5"
-          value={Math.round(zoom * 100)}
-          aria-label={tr("zoomLabel")}
-          onChange={(e) => applyZoom(Number(e.target.value) / 100)}
-        />
-        <button
-          type="button"
-          className="icon-button mini"
-          aria-label={tr("zoomIn")}
-          disabled={!ready}
-          onClick={() => applyZoom(zoomRef.current + 0.1)}
-        >
-          <Plus size={15} />
-        </button>
-        <span className="zoom-pct">{Math.round(zoom * 100)}%</span>
-      </div>
-      <div className="editor-tools">
-        <button
-          type="button"
-          className="icon-button"
-          disabled={hist.u < 2 || !!busy}
-          aria-label={tr("undoLabel")}
-          title={tr("undoLabel")}
-          onClick={undo}
-        >
-          <Undo2 size={17} />
-        </button>
-        <button
-          type="button"
-          className="icon-button"
-          disabled={!hist.r || !!busy}
-          aria-label={tr("redoLabel")}
-          title={tr("redoLabel")}
-          onClick={redo}
-        >
-          <Redo2 size={17} />
-        </button>
-        {[
-          { a: "smaller", l: tr("toolSmaller"), i: Minus },
-          { a: "bigger", l: tr("toolBigger"), i: Plus },
-          { a: "left", l: tr("toolLeft"), i: RotateCcw },
-          { a: "right", l: tr("toolRight"), i: RotateCw },
-          { a: "delete", l: tr("toolDelete"), i: Trash2 },
-        ].map((t) => (
-          <button
-            key={t.a}
-            className="icon-button"
-            disabled={!selected || !!busy}
-            aria-label={t.l}
-            title={t.l}
-            onClick={() => transform(t.a)}
-          >
-            <t.i size={17} />
-          </button>
-        ))}
-      </div>
-      <div className="layers-panel">
-        <div className="field-label">{tr("layersTitle")}</div>
-        {layers.length === 0 ? (
-          <p className="small-note">{tr("layersEmpty")}</p>
-        ) : (
-          <ul className="layers-list">
-            {layers.map((l) => (
-              <li key={l.lid} className={"layer-row" + (l.active ? " active" : "")}>
-                <button type="button" className="layer-name" onClick={() => selectLayer(l.obj)}>
-                  {l.label}
-                </button>
-                <button
-                  type="button"
-                  className="icon-button mini"
-                  aria-label={l.visible ? tr("layerHide") : tr("layerShow")}
-                  title={l.visible ? tr("layerHide") : tr("layerShow")}
-                  onClick={() => toggleLayer(l.obj, "visible")}
-                >
-                  {l.visible ? <Eye size={15} /> : <EyeOff size={15} />}
-                </button>
-                <button
-                  type="button"
-                  className="icon-button mini"
-                  aria-label={l.locked ? tr("layerUnlock") : tr("layerLock")}
-                  title={l.locked ? tr("layerUnlock") : tr("layerLock")}
-                  onClick={() => toggleLayer(l.obj, "lock")}
-                >
-                  {l.locked ? <Lock size={15} /> : <LockOpen size={15} />}
-                </button>
-                <button
-                  type="button"
-                  className="icon-button mini"
-                  aria-label={tr("layerForward")}
-                  title={tr("layerForward")}
-                  onClick={() => moveLayer(l.obj, "forward")}
-                >
-                  <ArrowUp size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button mini"
-                  aria-label={tr("layerBackward")}
-                  title={tr("layerBackward")}
-                  onClick={() => moveLayer(l.obj, "backward")}
-                >
-                  <ArrowDown size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button mini"
-                  aria-label={tr("toolDelete")}
-                  title={tr("toolDelete")}
-                  onClick={() => deleteLayer(l.obj)}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </li>
-            ))}
-          </ul>
         )}
-      </div>
-      <p className="small-note">{tr("editorHint")}</p>
-      <div className="element-tools">
-        <div className="field-label">{tr("templatesTitle")}</div>
-        <div className="template-grid">
-          {TEMPLATES.map((tpl) => (
-            <button
-              key={tpl.id}
-              type="button"
-              className="template-card"
-              disabled={!ready || !!busy}
-              onClick={() => applyTemplate(tpl)}
-            >
-              <span style={{ fontFamily: tpl.font }}>{tpl.title}</span>
-              <small>{tpl.name}</small>
-            </button>
-          ))}
-        </div>
-        <div className="field-label">{tr("shapesTitle")}</div>
-        <div className="shape-row">
-          {SHAPE_IDS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              className="secondary mini-btn"
-              disabled={!ready || !!busy}
-              onClick={() => addShape(id)}
-            >
-              {tr("shp" + id[0].toUpperCase() + id.slice(1))}
-            </button>
-          ))}
-        </div>
-        <div className="field-label">{tr("clipartTitle")}</div>
-        <div className="clipart-grid">
-          {CLIPARTS.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className="clipart-btn"
-              title={c.label}
-              aria-label={c.label}
-              disabled={!ready || !!busy}
-              onClick={() => addClipart(c)}
-              dangerouslySetInnerHTML={{ __html: c.svg }}
+        {tool === "upload" && (
+          <div className="tool-section">
+            <div className="panel-heading">
+              <span className="icon-tile">
+                <ImagePlus size={19} />
+              </span>
+              <div>
+                <h2>{tr("edTitle")}</h2>
+                <p>{tr("edSub")}</p>
+              </div>
+            </div>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              ref={fileInput}
+              className="visually-hidden"
+              aria-label={tr("pickFile")}
+              onChange={(e) => upload(e.target.files[0])}
             />
+            <button
+              className="upload-zone"
+              disabled={!ready || !!busy}
+              onClick={() => fileInput.current?.click()}
+            >
+              <ImagePlus size={24} />
+              <strong>{tr("uploadTitle")}</strong>
+              <span>{tr("uploadHint")}</span>
+            </button>
+            <div className="background-tools">
+              <label className="field-label" htmlFor="subject">
+                {tr("subjectLabel")}
+              </label>
+              <input
+                id="subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                maxLength={120}
+                placeholder={tr("subjectPlaceholder")}
+              />
+              <button
+                className="secondary"
+                disabled={!selected || !!busy || mode !== "live"}
+                onClick={() => removeBackground(false)}
+              >
+                <Scissors size={16} /> {tr("samButton")}
+              </button>
+              {mode !== "live" && (
+                <p className="small-note">{tr("samNote")}</p>
+              )}
+              <button
+                className="text-button"
+                disabled={!selected || !!busy}
+                onClick={() => removeBackground(true)}
+              >
+                {tr("tryWhite")}
+              </button>
+            </div>
+            <button
+              className="secondary full-width"
+              disabled={!ready || !!busy}
+              onClick={download}
+            >
+              <ArrowDownToLine size={16} /> {tr("downloadArtwork")}
+            </button>
+            <p className="small-note">{tr("exportNote")}</p>
+          </div>
+        )}
+        {tool === "font" && (
+          <div className="tool-section">
+            <h3 className="tool-title">{tr("fontTitle")}</h3>
+            <div className="text-add">
+              <label className="field-label" htmlFor="editor-text">
+                {tr("addText")}
+              </label>
+              <div>
+                <input
+                  id="editor-text"
+                  maxLength={140}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                />
+                <input
+                  aria-label={tr("textColor")}
+                  type="color"
+                  value={textColor}
+                  onChange={(e) => {
+                    setTextColor(e.target.value);
+                    const o = canvas.current?.getActiveObject();
+                    if (o && ["textbox", "i-text", "text"].includes(o.type)) {
+                      o.set("fill", e.target.value);
+                      canvas.current.requestRenderAll();
+                      emit();
+                    } else if (o && o.__arc) {
+                      regenerateArc(o, { fill: e.target.value });
+                    }
+                  }}
+                />
+                <select
+                  className="font-select"
+                  aria-label={tr("fontLabel")}
+                  value={font}
+                  onChange={(e) => {
+                    setFont(e.target.value);
+                    const o = canvas.current?.getActiveObject();
+                    if (o && ["textbox", "i-text", "text"].includes(o.type)) {
+                      o.set("fontFamily", e.target.value);
+                      canvas.current.requestRenderAll();
+                      emit();
+                    } else if (o && o.__arc) {
+                      regenerateArc(o, { fontFamily: e.target.value });
+                    }
+                  }}
+                >
+                  {FONTS.map((f) => (
+                    <option key={f} value={f} style={{ fontFamily: f }}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="icon-button"
+                  aria-label={tr("addTextCanvas")}
+                  disabled={!ready || !!busy}
+                  onClick={addText}
+                >
+                  <Type size={19} />
+                </button>
+              </div>
+            </div>
+            <div className="field-label">{tr("textShapeLabel")}</div>
+            <div className="seg-row" role="group" aria-label={tr("textShapeLabel")}>
+              {[
+                { id: "straight", k: "shapeStraight" },
+                { id: "arcUp", k: "shapeArcUp" },
+                { id: "arcDown", k: "shapeArcDown" },
+                { id: "circle", k: "shapeCircle" },
+              ].map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={"seg-btn" + (textShape === s.id ? " on" : "")}
+                  aria-pressed={textShape === s.id}
+                  onClick={() => {
+                    setTextShape(s.id);
+                    const arc = activeArc();
+                    if (arc && s.id !== "straight")
+                      regenerateArc(arc, { shape: s.id });
+                  }}
+                >
+                  {tr(s.k)}
+                </button>
+              ))}
+            </div>
+            <p className="small-note">{tr("textShapeHint")}</p>
+            {objProps && (
+              <div className="text-props">
+                {objProps.isText && (
+                  <div className="prop-row">
+                    <span>{tr("spacingLabel")}</span>
+                    <input
+                      type="range"
+                      min="-20"
+                      max="300"
+                      step="5"
+                      value={objProps.charSpacing}
+                      onChange={(e) => applyProp("charSpacing", Number(e.target.value))}
+                    />
+                  </div>
+                )}
+                {objProps.isText && (
+                  <div className="prop-row">
+                    <span>{tr("strokeLabel")}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="2.5"
+                      step="0.1"
+                      value={objProps.strokeWidth}
+                      onChange={(e) => applyProp("strokeWidth", Number(e.target.value))}
+                    />
+                  </div>
+                )}
+                <div className="prop-row">
+                  <span>{tr("opacityLabel")}</span>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value={objProps.opacity}
+                    onChange={(e) => applyProp("opacity", Number(e.target.value))}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {tool === "elemen" && (
+          <div className="tool-section">
+            <div className="element-tools">
+              <div className="field-label">{tr("templatesTitle")}</div>
+              <div className="template-grid">
+                {TEMPLATES.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    className="template-card"
+                    disabled={!ready || !!busy}
+                    onClick={() => applyTemplate(tpl)}
+                  >
+                    <span style={{ fontFamily: tpl.font }}>{tpl.title}</span>
+                    <small>{tpl.name}</small>
+                  </button>
+                ))}
+              </div>
+              <div className="field-label">{tr("shapesTitle")}</div>
+              <div className="shape-row">
+                {SHAPE_IDS.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className="secondary mini-btn"
+                    disabled={!ready || !!busy}
+                    onClick={() => addShape(id)}
+                  >
+                    {tr("shp" + id[0].toUpperCase() + id.slice(1))}
+                  </button>
+                ))}
+              </div>
+              <div className="field-label">{tr("clipartTitle")}</div>
+              <div className="clipart-grid">
+                {CLIPARTS.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="clipart-btn"
+                    title={c.label}
+                    aria-label={c.label}
+                    disabled={!ready || !!busy}
+                    onClick={() => addClipart(c)}
+                    dangerouslySetInnerHTML={{ __html: c.svg }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {tool === "image" && (
+          <div className="tool-section">
+            <DesignGallery t={tr} onPick={(url) => addImageFromURL(url)} />
+          </div>
+        )}
+        <div className="layers-panel">
+          <div className="field-label">{tr("layersTitle")}</div>
+          {layers.length === 0 ? (
+            <p className="small-note">{tr("layersEmpty")}</p>
+          ) : (
+            <ul className="layers-list">
+              {layers.map((l) => (
+                <li key={l.lid} className={"layer-row" + (l.active ? " active" : "")}>
+                  <button type="button" className="layer-name" onClick={() => selectLayer(l.obj)}>
+                    {l.label}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button mini"
+                    aria-label={l.visible ? tr("layerHide") : tr("layerShow")}
+                    title={l.visible ? tr("layerHide") : tr("layerShow")}
+                    onClick={() => toggleLayer(l.obj, "visible")}
+                  >
+                    {l.visible ? <Eye size={15} /> : <EyeOff size={15} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button mini"
+                    aria-label={l.locked ? tr("layerUnlock") : tr("layerLock")}
+                    title={l.locked ? tr("layerUnlock") : tr("layerLock")}
+                    onClick={() => toggleLayer(l.obj, "lock")}
+                  >
+                    {l.locked ? <Lock size={15} /> : <LockOpen size={15} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button mini"
+                    aria-label={tr("layerForward")}
+                    title={tr("layerForward")}
+                    onClick={() => moveLayer(l.obj, "forward")}
+                  >
+                    <ArrowUp size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button mini"
+                    aria-label={tr("layerBackward")}
+                    title={tr("layerBackward")}
+                    onClick={() => moveLayer(l.obj, "backward")}
+                  >
+                    <ArrowDown size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button mini"
+                    aria-label={tr("toolDelete")}
+                    title={tr("toolDelete")}
+                    onClick={() => deleteLayer(l.obj)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <p className="small-note">{tr("editorHint")}</p>
+        {busy && (
+          <p className="editor-status" role="status">
+            <LoaderCircle className="spinner" size={15} />
+            {busy}
+          </p>
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        {message && (
+          <p className="success-note" role="status">
+            {message}
+          </p>
+        )}
+      </div>
+      <div className={"ec-stage" + (stageHidden ? " stage-hidden" : "")}>
+        <div className="editor-canvas-shell">
+          <canvas ref={element} aria-label={tr("canvasLabel")} />
+        </div>
+        <div className="zoom-bar">
+          <button
+            type="button"
+            className="icon-button mini"
+            aria-label={tr("zoomOut")}
+            disabled={!ready}
+            onClick={() => applyZoom(zoomRef.current - 0.1)}
+          >
+            <Minus size={15} />
+          </button>
+          <input
+            type="range"
+            min="50"
+            max="200"
+            step="5"
+            value={Math.round(zoom * 100)}
+            aria-label={tr("zoomLabel")}
+            onChange={(e) => applyZoom(Number(e.target.value) / 100)}
+          />
+          <button
+            type="button"
+            className="icon-button mini"
+            aria-label={tr("zoomIn")}
+            disabled={!ready}
+            onClick={() => applyZoom(zoomRef.current + 0.1)}
+          >
+            <Plus size={15} />
+          </button>
+          <span className="zoom-pct">{Math.round(zoom * 100)}%</span>
+        </div>
+        <div className="editor-tools">
+          <button
+            type="button"
+            className="icon-button"
+            disabled={hist.u < 2 || !!busy}
+            aria-label={tr("undoLabel")}
+            title={tr("undoLabel")}
+            onClick={undo}
+          >
+            <Undo2 size={17} />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            disabled={!hist.r || !!busy}
+            aria-label={tr("redoLabel")}
+            title={tr("redoLabel")}
+            onClick={redo}
+          >
+            <Redo2 size={17} />
+          </button>
+          {[
+            { a: "smaller", l: tr("toolSmaller"), i: Minus },
+            { a: "bigger", l: tr("toolBigger"), i: Plus },
+            { a: "left", l: tr("toolLeft"), i: RotateCcw },
+            { a: "right", l: tr("toolRight"), i: RotateCw },
+            { a: "delete", l: tr("toolDelete"), i: Trash2 },
+          ].map((t2) => (
+            <button
+              key={t2.a}
+              className="icon-button"
+              disabled={!selected || !!busy}
+              aria-label={t2.l}
+              title={t2.l}
+              onClick={() => transform(t2.a)}
+            >
+              <t2.i size={17} />
+            </button>
           ))}
         </div>
       </div>
-      <div className="background-tools">
-        <label className="field-label" htmlFor="subject">
-          {tr("subjectLabel")}
-        </label>
-        <input
-          id="subject"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          maxLength={120}
-          placeholder={tr("subjectPlaceholder")}
-        />
-        <button
-          className="secondary"
-          disabled={!selected || !!busy || mode !== "live"}
-          onClick={() => removeBackground(false)}
-        >
-          <Scissors size={16} /> {tr("samButton")}
-        </button>
-        {mode !== "live" && (
-          <p className="small-note">{tr("samNote")}</p>
-        )}
-        <button
-          className="text-button"
-          disabled={!selected || !!busy}
-          onClick={() => removeBackground(true)}
-        >
-          {tr("tryWhite")}
-        </button>
-      </div>
-      {busy && (
-        <p className="editor-status" role="status">
-          <LoaderCircle className="spinner" size={15} />
-          {busy}
-        </p>
-      )}
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      {message && (
-        <p className="success-note" role="status">
-          {message}
-        </p>
-      )}
-      <button
-        className="secondary full-width"
-        disabled={!ready || !!busy}
-        onClick={download}
-      >
-        <ArrowDownToLine size={16} /> {tr("downloadArtwork")}
-      </button>
-      <p className="small-note">{tr("exportNote")}</p>
-    </section>
+    </div>
   );
 });
-function SlidersIcon() {
-  return <Type size={19} />;
-}
 export default EditorCanvas;

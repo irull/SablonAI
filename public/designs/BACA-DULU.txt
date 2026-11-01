@@ -1,0 +1,14 @@
+FOLDER DESAIN LOKAL SABLONAI
+============================
+
+Taruh file PNG desain siap pakai di folder ini (latar transparan lebih
+bagus untuk sablon), lalu daftarkan di file lib/designs.js:
+
+  { id: "nama-unik", name: "Nama Desain", src: "/designs/nama-file.png" }
+
+Setelah itu desainnya muncul di Studio DIY > panel Gambar > tab
+"Dari kami", dan pelanggan bisa memasukkannya ke kanvas dengan sekali
+klik.
+
+Catatan: jangan jalankan `npm run assets` — script itu menimpa aset
+mockup foto asli.

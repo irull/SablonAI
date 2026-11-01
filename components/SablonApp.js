@@ -5,24 +5,31 @@ import {
   ChevronRight,
   CircleHelp,
   ClipboardList,
+  Download,
   Expand,
+  FolderOpen,
+  Home,
+  Images,
   Languages,
   Layers3,
   Moon,
   PackageSearch,
+  Save,
   Shirt,
+  Shapes,
   SlidersHorizontal,
   Sparkles,
   Sun,
+  Type,
+  Upload,
   X,
 } from "lucide-react";
 import MockupCanvas from "./MockupCanvas";
 import ShirtViewer3D from "./ShirtViewer3D";
-import GeneratePanel from "./GeneratePanel";
 import EditorCanvas from "./EditorCanvas";
 import PricingPanel from "./PricingPanel";
+import HomePanel from "./HomePanel";
 import { orientedDimensions } from "../lib/pricing";
-import ColourGroup from "./ui/ColourGroup";
 import OrderDashboard from "./OrderDashboard";
 import CatalogPanel from "./CatalogPanel";
 import TrackingPanel from "./TrackingPanel";
@@ -36,14 +43,23 @@ import { translate } from "../lib/i18n";
 import { config, sampleBriefs } from "../lib/config";
 
 const tabs = [
-  { id: "ai", labelKey: "tabAi", icon: Sparkles },
-  { id: "editor", labelKey: "tabEditor", icon: SlidersHorizontal },
+  { id: "beranda", labelKey: "tabHome", icon: Home },
+  { id: "studio", labelKey: "tabStudio", icon: SlidersHorizontal },
   { id: "katalog", labelKey: "tabCatalog", icon: Shirt },
   { id: "lacak", labelKey: "tabTrack", icon: PackageSearch },
   { id: "dashboard", labelKey: "tabDashboard", icon: ClipboardList },
 ];
+const studioTools = [
+  { id: "ai", labelKey: "toolAi", icon: Sparkles },
+  { id: "upload", labelKey: "toolUpload", icon: Upload },
+  { id: "font", labelKey: "toolFont", icon: Type },
+  { id: "elemen", labelKey: "toolElemen", icon: Shapes },
+  { id: "image", labelKey: "toolImage", icon: Images },
+];
+const SAVE_KEY = "sablonai.savedDesign.v1";
+
 export default function SablonApp() {
-  const [tab, setTab] = useState("ai");
+  const [tab, setTab] = useState("beranda");
   const [theme, setTheme] = useState("light");
   const [lang, setLang] = useState("id");
   const tr = (key, vars) => translate(lang, key, vars);
@@ -62,9 +78,6 @@ export default function SablonApp() {
     } catch {}
   }, [theme, lang]);
   const [color, setColor] = useState(config.colors[0]);
-  // Paket 1B: produk, ukuran kaos, dan ukuran sablon tetap menggantikan
-  // lebar/tinggi cetak bebas. Ukuran sablon depan menentukan area cetak
-  // di mockup (tampilan depan); sablon belakang hanya menambah harga.
   const [productId, setProductId] = useState("kaos-pendek");
   const [size, setSize] = useState("L");
   const [frontPrintId, setFrontPrintId] = useState("A4");
@@ -96,9 +109,13 @@ export default function SablonApp() {
     front: { ...sampleBriefs[0], demo: true },
     back: null,
   });
-  const [view3d, setView3d] = useState(false);
+  // Studio DIY 1 layar (Nov 2026): tool aktif di rail kiri studio dan
+  // tampilan panggung — "canvas" (kanvas fabric), "2d" (mockup foto),
+  // "3d" (viewer 3D). Ketiganya berbagi state desain yang sama.
+  const [tool, setTool] = useState("ai");
+  const [view, setView] = useState("2d");
   const [side2d, setSide2d] = useState("front");
-  const [showArea, setShowArea] = useState(false),
+  const [showArea, setShowArea] = useState(true),
     [help, setHelp] = useState(false),
     [full, setFull] = useState(false);
   const [mode, setMode] = useState(config.demoMode ? "demo" : "live");
@@ -107,11 +124,8 @@ export default function SablonApp() {
   const sideDesign = (side) => designsBySide[side] || designsBySide.front;
   const sideArtwork = (side) => editedBySide[side] || sideDesign(side).image;
   const [editorOpened, setEditorOpened] = useState(false);
-  // Perbaikan 2026-10-28: efek ini harus jalan setiap tab berubah,
-  // bukan hanya saat mount (tab awal 'ai'), kalau tidak EditorCanvas
-  // tidak pernah dipasang dan panel Custom Editor terlihat kosong.
   useEffect(() => {
-    if (tab === "editor") setEditorOpened(true);
+    if (tab === "studio") setEditorOpened(true);
   }, [tab]);
   const editor = useRef(null);
   const updateDesign = (d) => {
@@ -122,6 +136,93 @@ export default function SablonApp() {
   const choose = (s) => {
     updateDesign({ ...s, demo: true });
   };
+  const chooseTool = (id) => {
+    setTool(id);
+    setView(id === "ai" ? "2d" : "canvas");
+  };
+  const [studioMsg, setStudioMsg] = useState("");
+  const studioMsgTimer = useRef(null);
+  const flashStudio = (msg) => {
+    setStudioMsg(msg);
+    clearTimeout(studioMsgTimer.current);
+    studioMsgTimer.current = setTimeout(() => setStudioMsg(""), 3500);
+  };
+  function saveDesign() {
+    try {
+      const data = {
+        v: 1,
+        savedAt: new Date().toISOString(),
+        tool,
+        side2d,
+        colorName: color.name,
+        productId,
+        size,
+        frontPrintId,
+        backPrintId,
+        frontOrientation,
+        backOrientation,
+        designsBySide,
+        editedBySide,
+        editorJSON: editor.current?.exportJSON() || null,
+        editorSide: side2d,
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      flashStudio(tr("msgDesignSaved"));
+    } catch {
+      flashStudio(tr("errSaveFailed"));
+    }
+  }
+  function openSaved() {
+    let raw = null;
+    try {
+      raw = localStorage.getItem(SAVE_KEY);
+    } catch {}
+    if (!raw) {
+      flashStudio(tr("msgNoSaved"));
+      return;
+    }
+    try {
+      const d = JSON.parse(raw);
+      const c = config.colors.find((x) => x.name === d.colorName);
+      if (c) setColor(c);
+      if (d.productId) setProductId(d.productId);
+      if (d.size) setSize(d.size);
+      setFrontPrintId(d.frontPrintId ?? "A4");
+      setBackPrintId(d.backPrintId ?? null);
+      if (d.frontOrientation) setFrontOrientation(d.frontOrientation);
+      if (d.backOrientation) setBackOrientation(d.backOrientation);
+      if (d.designsBySide) setDesignsBySide(d.designsBySide);
+      if (d.editedBySide) setEditedBySide(d.editedBySide);
+      if (d.tool) setTool(d.tool);
+      setSide2d(d.editorSide || d.side2d || "front");
+      if (d.editorJSON)
+        setTimeout(() => {
+          editor.current?.loadJSON(d.editorJSON);
+        }, 450);
+      flashStudio(tr("msgDesignRestored"));
+    } catch {
+      flashStudio(tr("msgNoSaved"));
+    }
+  }
+  function downloadMockup() {
+    let url = null;
+    let name = "sablonai-mockup.jpg";
+    if (view === "2d") {
+      url = mockup.current?.export();
+      name = "sablonai-mockup-" + side2d + ".jpg";
+    } else if (view === "canvas") {
+      url = editor.current?.exportPNG();
+      name = "sablonai-desain.png";
+    } else {
+      url = sideArtwork(side2d);
+      name = "sablonai-desain.png";
+    }
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+  }
   const [orders, setOrders] = useState([]),
     [storageError, setStorageError] = useState("");
   useEffect(() => {
@@ -156,10 +257,12 @@ export default function SablonApp() {
   }
   async function createOrder(details) {
     if (storageError) throw new Error(storageError);
-    if (tab === "editor" && !editor.current?.exportJSON()?.objects?.length)
+    const inStudio = tab === "studio";
+    const fromEditor = inStudio && tool !== "ai";
+    if (fromEditor && !editor.current?.exportJSON()?.objects?.length)
       throw new Error("Tambahkan gambar atau teks sebelum membuat order.");
-    const editorArtwork = tab === "editor" ? editor.current?.exportPNG() : null;
-    if (tab === "editor" && (!editorArtwork || editorArtwork !== editedBySide[side2d]))
+    const editorArtwork = fromEditor ? editor.current?.exportPNG() : null;
+    if (fromEditor && (!editorArtwork || editorArtwork !== editedBySide[side2d]))
       throw new Error(
         "Editor sedang memperbarui desain. Tunggu sebentar lalu simpan kembali.",
       );
@@ -169,11 +272,11 @@ export default function SablonApp() {
         "Mockup sedang diperbarui. Tunggu sebentar lalu simpan kembali.",
       );
     const artwork = await artworkDataURL(
-      tab === "editor" && side2d === "front" ? editorArtwork : sideArtwork("front"),
+      fromEditor && side2d === "front" ? editorArtwork : sideArtwork("front"),
     );
     const backArtwork = backPrintId
       ? await artworkDataURL(
-          tab === "editor" && side2d === "back" ? editorArtwork : sideArtwork("back"),
+          fromEditor && side2d === "back" ? editorArtwork : sideArtwork("back"),
         )
       : null;
     const order = {
@@ -196,7 +299,7 @@ export default function SablonApp() {
       preview,
       artwork,
       backArtwork,
-      source: tab === "editor" ? "editor" : "generate",
+      source: fromEditor ? "editor" : "generate",
       pricingIsExample: config.pricingIsExample,
       design: {
         title: design.title,
@@ -205,8 +308,8 @@ export default function SablonApp() {
         demo: design.demo !== false,
         trace: design.trace || null,
       },
-      editorJSON: tab === "editor" ? editor.current?.exportJSON() : null,
-      editorSide: tab === "editor" ? side2d : null,
+      editorJSON: fromEditor ? editor.current?.exportJSON() : null,
+      editorSide: fromEditor ? side2d : null,
     };
     const next = [order, ...readOrders(localStorage)];
     writeOrders(localStorage, next);
@@ -228,6 +331,7 @@ export default function SablonApp() {
     writeOrders(localStorage, next);
     setOrders(next);
   }
+  const activeTab = tabs.find((t) => t.id === tab);
   return (
     <div className="app-shell">
       <aside className="rail" aria-label={tr("studioNavHome")}>
@@ -283,7 +387,7 @@ export default function SablonApp() {
           </a>
           <div className="breadcrumb">
             Workspace <ChevronRight size={13} />{" "}
-            <strong>{tr("breadcrumbStudio")}</strong>
+            <strong>{activeTab ? tr(activeTab.labelKey) : tr("breadcrumbStudio")}</strong>
           </div>
           <div className="top-right">
             <span className="demo-badge">
@@ -295,103 +399,159 @@ export default function SablonApp() {
           </div>
         </header>
         <main>
-          <section className="page-heading">
-            <div>
-              <div className="eyebrow">{tr("heroEyebrow")}</div>
-              <h1>
-                {tr("heroTitle")}{" "}
-                <em className="hero-accent">{tr("heroTitleAccent")}</em>
-              </h1>
-              <p>{tr("heroSub")}</p>
-            </div>
-            <div className="studio-tag">
-              <span className="tiny-shirt">
-                <Shirt size={19} />
-              </span>
-              <div>
-                <strong>{tr("studioDtf")}</strong>
-                <small>{tr("studioDtfSub")}</small>
+          {tab === "beranda" && (
+            <HomePanel
+              t={tr}
+              onStudio={(toolId) => {
+                setTab("studio");
+                chooseTool(toolId || "ai");
+              }}
+              onUseDesign={(s) => {
+                choose(s);
+                setTab("studio");
+                setTool("ai");
+                setView("2d");
+              }}
+              onCustomize={(s) => {
+                choose(s);
+                setTab("studio");
+                setTool("upload");
+                setView("canvas");
+              }}
+              onCatalog={() => setTab("katalog")}
+            />
+          )}
+          {(tab === "studio" || editorOpened) && (
+            <div hidden={tab !== "studio"}>
+              <div className="studio-heading">
+                <div>
+                  <span className="eyebrow">{tr("studioEyebrow")}</span>
+                  <h2>{tr("studioTitle")}</h2>
+                </div>
+                <div className="studio-actions">
+                  {studioMsg && (
+                    <span className="studio-msg" role="status">
+                      {studioMsg}
+                    </span>
+                  )}
+                  <button type="button" onClick={saveDesign}>
+                    <Save size={14} /> {tr("saveDesign")}
+                  </button>
+                  <button type="button" onClick={openSaved}>
+                    <FolderOpen size={14} /> {tr("openSaved")}
+                  </button>
+                  <button type="button" onClick={downloadMockup}>
+                    <Download size={14} /> {tr("downloadMockup")}
+                  </button>
+                </div>
               </div>
-            </div>
-          </section>
-          <div className="studio-grid" hidden={tab === "dashboard" || tab === "katalog" || tab === "lacak"}>
-            <div className="design-tools">
-              <p className="side-note">
-                {tr("designForSide")}: <strong>{side2d === "front" ? tr("viewFront") : tr("viewBack")}</strong>
-              </p>
-              <div hidden={tab !== "ai"}>
-                <GeneratePanel
-                  t={tr}
-                  design={sideDesign(side2d)}
-                  onDesign={updateDesign}
-                  onMode={setMode}
-                />
-              </div>
-              <div hidden={tab !== "editor"}>
+              <div className="studio-shell">
+                <div className="tool-rail" role="group" aria-label={tr("tabStudio")}>
+                  {studioTools.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={"tool-rail-btn" + (tool === t.id ? " active" : "")}
+                      aria-pressed={tool === t.id}
+                      onClick={() => chooseTool(t.id)}
+                    >
+                      <t.icon size={21} />
+                      <span>{tr(t.labelKey)}</span>
+                    </button>
+                  ))}
+                </div>
                 {editorOpened && (
                   <EditorCanvas
                     key={side2d}
                     t={tr}
                     ref={editor}
+                    tool={tool}
+                    stageHidden={view !== "canvas"}
                     initialImage={sideArtwork(side2d)}
                     onChange={(url) => setEditedBySide((prev) => ({ ...prev, [side2d]: url }))}
                     mode={mode}
+                    aiDesign={sideDesign(side2d)}
+                    onAiDesign={updateDesign}
+                    onAiMode={setMode}
+                    onRevealMockup={() => setView("2d")}
                   />
                 )}
-              </div>
-            </div>
-            <section
-              className={"preview-panel card" + (full ? " fullscreen" : "")}
-            >
-              <div className="preview-toolbar">
-                <div>
-                  <span className="live-dot" /> {tr("previewTitle")}
-                </div>
-                <div
-                  className="view-toggle"
-                  role="group"
-                  aria-label={tr("viewModeLabel")}
+                <section
+                  className={
+                    "stage-panel card" +
+                    (full ? " fullscreen" : "") +
+                    (view === "canvas" ? " stage-off" : "")
+                  }
                 >
-                  <button
-                    type="button"
-                    className={!view3d ? "seg active" : "seg"}
-                    aria-pressed={!view3d}
-                    onClick={() => setView3d(false)}
-                  >
-                    2D
-                  </button>
-                  <button
-                    type="button"
-                    className={view3d ? "seg active" : "seg"}
-                    aria-pressed={view3d}
-                    onClick={() => setView3d(true)}
-                  >
-                    3D
-                  </button>
-                </div>
-                <div>
-                  <button
-                    aria-label={tr("showArea")}
-                    aria-pressed={showArea}
-                    className={
-                      showArea ? "icon-button selected" : "icon-button"
-                    }
-                    onClick={() => setShowArea(!showArea)}
-                  >
-                    <SlidersHorizontal size={17} />
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label={full ? tr("closeFull") : tr("enlarge")}
-                    onClick={() => setFull(!full)}
-                  >
-                    {full ? <X size={17} /> : <Expand size={17} />}
-                  </button>
-                </div>
-              </div>
-              <div className="mockup-stage">
-                {!view3d && (
-                  <div className="view-toggle side-toggle">
+                  <div className="stage-top">
+                    <div>
+                      <span className="live-dot" /> {tr("previewTitle")}
+                    </div>
+                    <div>
+                      <button
+                        aria-label={tr("showArea")}
+                        aria-pressed={showArea}
+                        className={showArea ? "icon-button selected" : "icon-button"}
+                        onClick={() => setShowArea(!showArea)}
+                      >
+                        <SlidersHorizontal size={17} />
+                      </button>
+                      <button
+                        className="icon-button"
+                        aria-label={full ? tr("closeFull") : tr("enlarge")}
+                        onClick={() => setFull(!full)}
+                      >
+                        {full ? <X size={17} /> : <Expand size={17} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mockup-stage">
+                    {view === "3d" && (
+                      <ShirtViewer3D
+                        artwork={frontPrintId ? sideArtwork("front") : null}
+                        backArtwork={backPrintId ? sideArtwork("back") : null}
+                        backWidthCm={backDims ? backDims.wCm : 0}
+                        backHeightCm={backDims ? backDims.hCm : 0}
+                        frontWidthCm={frontDims.wCm}
+                        frontHeightCm={frontDims.hCm}
+                        color={color.hex}
+                        t={tr}
+                      />
+                    )}
+                    <div className={view === "2d" ? "" : "mockup-keeper"}>
+                      <MockupCanvas
+                        ref={mockup}
+                        side={side2d}
+                        artwork={(side2d === "front" ? !frontPrintId : !backPrintId) ? null : sideArtwork(side2d)}
+                        color={color.hex}
+                        printWidth={side2d === "back" && backDims ? backDims.wCm : frontDims.wCm}
+                        printHeight={side2d === "back" && backDims ? backDims.hCm : frontDims.hCm}
+                        showArea={showArea && (side2d === "front" ? Boolean(frontPrintId) : Boolean(backPrintId))}
+                      />
+                    </div>
+                    {view === "2d" && (
+                      <>
+                        <div className="print-measure">
+                          <span />
+                          {side2d === "back"
+                            ? backDims
+                              ? backDims.wCm + " × " + backDims.hCm + " cm" + (backIsLandscape ? tr("landscapeSuffix") : "")
+                              : tr("backPlainNote")
+                            : frontPrintId
+                              ? frontDims.wCm + " × " + frontDims.hCm + " cm" + (frontIsLandscape ? tr("landscapeSuffix") : "")
+                              : tr("noPrint")}
+                          <span />
+                        </div>
+                        <span className="mockup-label">
+                          {tr("mockupShop")} •{" "}
+                          {design.demo !== false ? tr("artworkDemo") : tr("artworkMeta")}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </section>
+                <div className="stage-bottom">
+                  <div className="view-toggle side-toggle" role="group" aria-label={tr("activeSideLabel")}>
                     <button type="button" className={"seg" + (side2d === "front" ? " on" : "")} onClick={() => setSide2d("front")}>
                       {tr("viewFront")}
                     </button>
@@ -399,72 +559,51 @@ export default function SablonApp() {
                       {tr("viewBack")}
                     </button>
                   </div>
-                )}
-                {view3d && (
-                  <ShirtViewer3D
-                    artwork={sideArtwork("front")}
-                    backArtwork={backPrintId ? sideArtwork("back") : null}
-                    backWidthCm={backDims ? backDims.wCm : 0}
-                    backHeightCm={backDims ? backDims.hCm : 0}
-                    frontWidthCm={frontDims.wCm}
-                    frontHeightCm={frontDims.hCm}
-                    color={color.hex}
-                    t={tr}
-                  />
-                )}
-                {!view3d && (
-                  <>
-                
-                <MockupCanvas
-                  ref={mockup}
-                  side={side2d}
-                  artwork={side2d === "back" && !backPrintId ? null : sideArtwork(side2d)}
-                  color={color.hex}
-                  printWidth={side2d === "back" && backDims ? backDims.wCm : frontDims.wCm}
-                  printHeight={side2d === "back" && backDims ? backDims.hCm : frontDims.hCm}
-                  showArea={showArea && (side2d === "front" || Boolean(backPrintId))}
-                />
-                <div className="print-measure">
-                  <span />
-                  {side2d === "back"
-                    ? backDims
-                      ? backDims.wCm + " × " + backDims.hCm + " cm" + (backIsLandscape ? tr("landscapeSuffix") : "")
-                      : tr("backPlainNote")
-                    : frontDims.wCm + " × " + frontDims.hCm + " cm" + (frontIsLandscape ? tr("landscapeSuffix") : "")}
-                  <span />
+                  <span className="stage-hint">
+                    {view === "canvas"
+                      ? tr("stageHintCanvas") + " · " + tr("printAreaNote")
+                      : tr("stageHintMockup")}
+                  </span>
+                  <div className="view-toggle" role="group" aria-label={tr("viewModeLabel")}>
+                    <button type="button" className={"seg" + (view === "canvas" ? " on" : "")} aria-pressed={view === "canvas"} onClick={() => setView("canvas")}>
+                      {tr("viewCanvas")}
+                    </button>
+                    <button type="button" className={"seg" + (view === "2d" ? " on" : "")} aria-pressed={view === "2d"} onClick={() => setView("2d")}>
+                      2D
+                    </button>
+                    <button type="button" className={"seg" + (view === "3d" ? " on" : "")} aria-pressed={view === "3d"} onClick={() => setView("3d")}>
+                      3D
+                    </button>
+                  </div>
                 </div>
-                <span className="mockup-label">
-                  {tr("mockupShop")} •{" "}
-                  {design.demo !== false ? tr("artworkDemo") : tr("artworkMeta")}
-                </span>
-                  </>
-                )}
+                <PricingPanel
+                  t={tr}
+                  productId={productId}
+                  size={size}
+                  frontPrintId={frontPrintId}
+                  backPrintId={backPrintId}
+                  onProduct={changeProduct}
+                  onSize={setSize}
+                  onFrontPrint={setFrontPrintId}
+                  onBackPrint={setBackPrintId}
+                  frontOrientation={frontOrientation}
+                  backOrientation={backOrientation}
+                  onFrontOrientation={setFrontOrientation}
+                  onBackOrientation={setBackOrientation}
+                  side={side2d}
+                  onSide={setSide2d}
+                  color={color}
+                  onColor={setColor}
+                  onOrder={createOrder}
+                  onDashboard={() => setTab("dashboard")}
+                />
               </div>
-              <ColourGroup
-                t={tr}
-                value={color}
-                onChange={setColor}
-                colors={config.colors}
-              />
-            </section>
-            <PricingPanel
-              t={tr}
-              productId={productId}
-              size={size}
-              frontPrintId={frontPrintId}
-              backPrintId={backPrintId}
-              onProduct={changeProduct}
-              onSize={setSize}
-              onFrontPrint={setFrontPrintId}
-              onBackPrint={setBackPrintId}
-              frontOrientation={frontOrientation}
-              backOrientation={backOrientation}
-              onFrontOrientation={setFrontOrientation}
-              onBackOrientation={setBackOrientation}
-              onOrder={createOrder}
-              onDashboard={() => setTab("dashboard")}
-            />
-          </div>
+              <p className="side-note studio-side-note">
+                {tr("designForSide")}:{" "}
+                <strong>{side2d === "front" ? tr("viewFront") : tr("viewBack")}</strong>
+              </p>
+            </div>
+          )}
           {tab === "lacak" && (
             <TrackingPanel orders={orders} t={tr} lang={lang} />
           )}
@@ -477,44 +616,10 @@ export default function SablonApp() {
               lang={lang}
               orders={orders}
               onStatus={changeStatus}
-              onNew={() => setTab("ai")}
+              onNew={() => setTab("studio")}
               error={storageError}
             />
           )}
-          <section className="gallery-section" hidden={tab === "dashboard" || tab === "katalog" || tab === "lacak"}>
-            <div className="gallery-title">
-              <div>
-                <h2>{tr("galleryTitle")}</h2>
-                <p>{tr("gallerySub")}</p>
-              </div>
-              <span>
-                {tr("galleryCount")} <ArrowRight size={16} />
-              </span>
-            </div>
-            <div className="gallery-grid">
-              {sampleBriefs.map((s, i) => (
-                <button
-                  className={"gallery-card gallery-" + i}
-                  key={s.id}
-                  onClick={() => {
-                    choose(s);
-                    setTab("ai");
-                  }}
-                >
-                  <div className="gallery-art">
-                    <img src={s.image} alt={tr("designExampleAlt") + s.title} />
-                    <span className="gallery-action">
-                      <ArrowRight size={20} />
-                    </span>
-                  </div>
-                  <div className="gallery-caption">
-                    <strong>{s.title}</strong>
-                    <span>{s.category}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
           <footer>
             <span>
               © 2026 SablonAI <span className="footer-dot">•</span>{" "}

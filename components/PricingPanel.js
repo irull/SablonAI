@@ -1,13 +1,9 @@
 "use client";
-import { useState } from "react";
-import { ArrowRight, CheckCheck, LoaderCircle, Pencil, Shirt, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { ArrowRight, CheckCheck, LoaderCircle, X } from "lucide-react";
 import { config, formatRupiah as rp } from "../lib/config";
-import {
-  calculatePrice,
-  getProduct,
-  productPrice,
-} from "../lib/pricing";
-import OptionGroup from "./ui/OptionGroup";
+import { calculatePrice, getProduct } from "../lib/pricing";
+import ColourGroup from "./ui/ColourGroup";
 import {
   Dialog,
   DialogPanel,
@@ -29,19 +25,6 @@ const MASKING_IMAGES = {
   A4: "/assets/masking/sablon-A4-21x28.jpg",
   A3: "/assets/masking/sablon-A3-28x42.jpg",
 };
-
-function SizeChartCard({ productId, tr }) {
-  const has =
-    productId === "kaos-anak" ||
-    productId === "kaos-pendek" ||
-    productId === "kaos-panjang";
-  if (!has) return null;
-  return (
-    <div className="detail-group">
-      <SizeChart productId={productId} tr={tr} />
-    </div>
-  );
-}
 
 function MaskingFigure({ print, side, usedLabel, tr }) {
   const src = MASKING_IMAGES[print.id];
@@ -115,6 +98,11 @@ function SizeChart({ productId, tr }) {
   );
 }
 
+// Panel kanan Studio DIY (Nov 2026, mengikuti Sablon Studio-nya Codex):
+// semua keputusan produk ada di satu panel — produk, warna, ukuran,
+// ukuran sablon SISI AKTIF + checklist "Sablon sisi ini", jumlah, harga
+// live, lalu form pesan. Sisi aktif disinkronkan dengan toggle
+// Depan/Belakang di panggung (mockup 2D, 3D, dan editor ikut sisi ini).
 export default function PricingPanel({
   productId,
   size,
@@ -128,6 +116,10 @@ export default function PricingPanel({
   backOrientation = "portrait",
   onFrontOrientation,
   onBackOrientation,
+  side = "front",
+  onSide,
+  color,
+  onColor,
   onOrder,
   onDashboard,
   t,
@@ -141,14 +133,10 @@ export default function PricingPanel({
   const [lastOrder, setLastOrder] = useState(null);
   const [phone, setPhone] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
+  // Ukuran sablon terakhir per sisi, supaya checklist yang dimatikan
+  // lalu dinyalakan lagi kembali ke ukuran sebelumnya.
+  const lastPrint = useRef({ front: "A4", back: "A4" });
   const product = getProduct(productId);
-  const productPriceForSize = (s) => {
-    try {
-      return productPrice(product, s);
-    } catch {
-      return product.basePrice;
-    }
-  };
   const quote = calculatePrice({
     productId,
     size,
@@ -157,11 +145,29 @@ export default function PricingPanel({
     frontOrientation,
     backOrientation,
     quantity,
+    allowNoPrint: true,
   });
-  const frontPrint = config.printSizes.find((p) => p.id === frontPrintId);
+  const frontPrint = frontPrintId
+    ? config.printSizes.find((p) => p.id === frontPrintId)
+    : null;
   const backPrint = backPrintId
     ? config.printSizes.find((p) => p.id === backPrintId)
     : null;
+  const activePrintId = side === "front" ? frontPrintId : backPrintId;
+  const activePrint = side === "front" ? frontPrint : backPrint;
+  const activeOrientation =
+    side === "front" ? frontOrientation : backOrientation;
+  const setActivePrint = (id) => {
+    if (id) lastPrint.current[side] = id;
+    if (side === "front") onFrontPrint(id);
+    else onBackPrint(id);
+    setSuccess("");
+  };
+  const setActiveOrientation = (v) => {
+    if (side === "front") onFrontOrientation(v);
+    else onBackOrientation(v);
+    setSuccess("");
+  };
   async function save(e) {
     e.preventDefault();
     setError("");
@@ -198,259 +204,186 @@ export default function PricingPanel({
     }
   }
   return (
-    <section className="settings-panel card">
-      <div className="panel-heading">
-        <span className="icon-tile neutral">
-          <Shirt size={19} />
-        </span>
-        <div>
-          <h2>{tr("ppTitle")}</h2>
-          <p>{tr("ppSub")}</p>
-        </div>
-      </div>
-      <dl className="spec-summary">
-        <div>
-          <dt>{tr("sumProduct")}</dt>
-          <dd>
-            {product.name} · {size}
-          </dd>
-        </div>
-        <div>
-          <dt>{tr("sumFront")}</dt>
-          <dd>{quote.frontPrintLabel}</dd>
-        </div>
-        <div>
-          <dt>{tr("sumBack")}</dt>
-          <dd>{quote.backPrintLabel ?? tr("noPrint")}</dd>
-        </div>
-      </dl>
-      <button
-        type="button"
-        className="secondary full-width detail-button"
-        onClick={() => setDetailOpen(true)}
-      >
-        <Pencil size={15} /> {tr("detailEdit")}
-      </button>
-      <Dialog
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        className="detail-dialog-root"
-      >
-        <div className="detail-backdrop" aria-hidden="true" />
-        <div className="detail-wrap">
-          <DialogPanel className="detail-card">
-            <div className="detail-head">
-              <DialogTitle>{tr("detailTitle")}</DialogTitle>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={tr("doneLabel")}
-                onClick={() => setDetailOpen(false)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-      <div className="detail-group">
-      <OptionGroup
-        label={tr("stepProduct")}
+    <section className="settings-panel card studio-settings">
+      <span className="eyebrow">{tr("canvasYours")}</span>
+      <h3 className="settings-product">{product.name}</h3>
+      <label className="field-label" htmlFor="pp-product">
+        {tr("stepProduct")}
+      </label>
+      <select
+        id="pp-product"
+        className="settings-select"
         value={productId}
-        onChange={(v) => {
-          onProduct(v);
+        onChange={(e) => {
+          onProduct(e.target.value);
           setSuccess("");
         }}
-        options={config.products.map((p) => ({
-          value: p.id,
-          label: `${p.name} — ${rp(p.basePrice)}`,
-        }))}
-      />
-      <OptionGroup
-        label={tr("stepSize")}
-        value={size}
-        onChange={(v) => {
-          onSize(v);
-          setSuccess("");
-        }}
-        options={product.sizes.map((s) => ({
-          value: s,
-          label:
-            product.sizes.length === 1
-              ? s
-              : `${s} — ${rp(productPriceForSize(s))}`,
-        }))}
-      />
+      >
+        {config.products.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name} — {rp(p.basePrice)}
+          </option>
+        ))}
+      </select>
+      <ColourGroup t={tr} value={color} onChange={onColor} colors={config.colors} />
+      <div className="label-row">
+        <span className="field-label">{tr("stepSize")}</span>
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => setDetailOpen(true)}
+        >
+          {tr("sizeChartLink")} ↗
+        </button>
       </div>
-      <div className="detail-group">
-      <OptionGroup
-        label={tr("stepFront")}
-        value={frontPrintId}
-        onChange={(v) => {
-          onFrontPrint(v);
-          setSuccess("");
-        }}
-        options={config.printSizes.map((p) => ({
-          value: p.id,
-          label: `${p.label} — ${rp(p.price)}`,
-        }))}
-      />
-      {frontPrint && frontPrint.wCm === frontPrint.hCm ? (
-        <p className="small-note">
-          {tr("squareNote", { w: frontPrint.wCm, h: frontPrint.hCm })}
-        </p>
-      ) : (
-        <OptionGroup
-          label={tr("orientFront")}
-          value={frontOrientation}
-          onChange={(v) => {
-            onFrontOrientation(v);
-            setSuccess("");
-          }}
-          options={
-            frontPrint
-              ? [
-                  {
-                    value: "portrait",
-                    label: `${tr("portrait")} ${frontPrint.wCm}×${frontPrint.hCm} cm`,
-                  },
-                  {
-                    value: "landscape",
-                    label: `${tr("landscape")} ${frontPrint.hCm}×${frontPrint.wCm} cm`,
-                  },
-                ]
-              : []
-          }
-        />
-      )}
-      <p className="small-note">
-        {tr("usedInMockup", {
-          label: quote.frontPrintLabel,
-          price: rp(quote.front),
-        })}{" "}
-        {tr("priceUnchanged")}
-      </p>
-      {frontPrint && (
-        <MaskingFigure
-          print={frontPrint}
-          side="front"
-          usedLabel={quote.frontPrintLabel}
-          tr={tr}
-        />
-      )}
-      <OptionGroup
-        label={tr("stepBack")}
-        value={backPrintId}
-        onChange={(v) => {
-          onBackPrint(v);
-          setSuccess("");
-        }}
-        options={[
-          { value: null, label: tr("noPrintOption") },
-          ...config.printSizes.map((p) => ({
-            value: p.id,
-            label: `${p.label} — ${rp(p.price)}`,
-          })),
-        ]}
-      />
-      {backPrint && backPrint.wCm === backPrint.hCm ? (
-        <p className="small-note">
-          {tr("squareNote", { w: backPrint.wCm, h: backPrint.hCm })}
-        </p>
-      ) : backPrint ? (
-        <OptionGroup
-          label={tr("orientBack")}
-          value={backOrientation}
-          onChange={(v) => {
-            onBackOrientation(v);
-            setSuccess("");
-          }}
-          options={[
-            {
-              value: "portrait",
-              label: `${tr("portrait")} ${backPrint.wCm}×${backPrint.hCm} cm`,
-            },
-            {
-              value: "landscape",
-              label: `${tr("landscape")} ${backPrint.hCm}×${backPrint.wCm} cm`,
-            },
-          ]}
-        />
-      ) : null}
-      {backPrint && (
-        <p className="small-note">
-          {tr("backSummary", {
-            label: quote.backPrintLabel,
-            price: rp(quote.back),
-          })}
-        </p>
-      )}
-      {backPrint && (
-        <MaskingFigure
-          print={backPrint}
-          side="back"
-          usedLabel={quote.backPrintLabel}
-          tr={tr}
-        />
-      )}
-      </div>
-      <SizeChartCard productId={productId} tr={tr} />
-            <button
-              type="button"
-              className="primary full-width"
-              onClick={() => setDetailOpen(false)}
-            >
-              {tr("doneLabel")}
-            </button>
-          </DialogPanel>
-        </div>
-      </Dialog>
-      <div className="quantity-field">
-        <label htmlFor="quantity" className="field-label">
-          {tr("qtyLabel")}
-        </label>
-        <div>
-          <input
-            id="quantity"
-            type="number"
-            min="1"
-            max="100"
-            value={quantity}
-            onChange={(e) => {
-              setQuantity(
-                Math.max(1, Math.min(100, Math.trunc(+e.target.value) || 1)),
-              );
+      <div className="size-pills" role="group" aria-label={tr("stepSize")}>
+        {product.sizes.map((s) => (
+          <button
+            key={s}
+            type="button"
+            className={"size-pill" + (size === s ? " on" : "")}
+            aria-pressed={size === s}
+            onClick={() => {
+              onSize(s);
               setSuccess("");
             }}
-          />
-          <span>pcs</span>
-        </div>
+          >
+            {s}
+          </button>
+        ))}
       </div>
-      <div className="pricing-box" aria-live="polite">
-        <div className="eyebrow">{tr("estimate", { qty: quantity })}</div>
-        <strong className="price">{rp(quote.total)}</strong>
-        <span className="price-caption">
-          {config.pricingIsExample ? tr("priceExample") : tr("priceShop")}
-        </span>
-        <dl className="price-breakdown">
-          <div>
-            <dt>
-              {product.name} {size}
-            </dt>
-            <dd>{rp(quote.shirt)}</dd>
-          </div>
-          <div>
-            <dt>{tr("frontRow")} {frontPrint ? frontPrint.label : ""}</dt>
-            <dd>{rp(quote.front)}</dd>
-          </div>
-          <div>
-            <dt>
-              {tr("backRow")} {backPrint ? backPrint.label : tr("noBackSuffix")}
-            </dt>
-            <dd>{rp(quote.back)}</dd>
-          </div>
-          <div className="unit-price">
-            <dt>{tr("perShirt")}</dt>
-            <dd>{rp(quote.unit)}</dd>
-          </div>
-        </dl>
+      <div className="field-label">{tr("activeSideLabel")}</div>
+      <div className="seg-row" role="group" aria-label={tr("activeSideLabel")}>
+        <button
+          type="button"
+          className={"seg-btn" + (side === "front" ? " on" : "")}
+          aria-pressed={side === "front"}
+          onClick={() => onSide("front")}
+        >
+          {tr("viewFront")}
+        </button>
+        <button
+          type="button"
+          className={"seg-btn" + (side === "back" ? " on" : "")}
+          aria-pressed={side === "back"}
+          onClick={() => onSide("back")}
+        >
+          {tr("viewBack")}
+        </button>
+      </div>
+      <label className="field-label" htmlFor="pp-print">
+        {tr("printSizeFor", {
+          side: tr(side === "front" ? "sideFront" : "sideBack").toLowerCase(),
+        })}
+      </label>
+      <select
+        id="pp-print"
+        className="settings-select"
+        value={activePrintId ?? ""}
+        onChange={(e) => setActivePrint(e.target.value || null)}
+      >
+        <option value="">{tr("noPrintOption")}</option>
+        {config.printSizes.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.label} — {rp(p.price)}
+          </option>
+        ))}
+      </select>
+      {activePrint && activePrint.wCm !== activePrint.hCm && (
+        <div className="seg-row" role="group" aria-label={tr("orientFront")}>
+          <button
+            type="button"
+            className={"seg-btn" + (activeOrientation === "portrait" ? " on" : "")}
+            aria-pressed={activeOrientation === "portrait"}
+            onClick={() => setActiveOrientation("portrait")}
+          >
+            {tr("portrait")} {activePrint.wCm}×{activePrint.hCm}
+          </button>
+          <button
+            type="button"
+            className={"seg-btn" + (activeOrientation === "landscape" ? " on" : "")}
+            aria-pressed={activeOrientation === "landscape"}
+            onClick={() => setActiveOrientation("landscape")}
+          >
+            {tr("landscape")} {activePrint.hCm}×{activePrint.wCm}
+          </button>
+        </div>
+      )}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={activePrintId != null}
+          onChange={(e) =>
+            setActivePrint(e.target.checked ? lastPrint.current[side] : null)
+          }
+        />
+        {tr("printThisSide")}
+      </label>
+      <p className="small-note">{tr("printSideNote")}</p>
+      {activePrint && (
+        <MaskingFigure
+          print={activePrint}
+          side={side}
+          usedLabel={
+            side === "front" ? quote.frontPrintLabel : quote.backPrintLabel
+          }
+          tr={tr}
+        />
+      )}
+      <div className="field-label">{tr("qtyLabel")}</div>
+      <div className="qty-stepper">
+        <button
+          type="button"
+          aria-label="−"
+          onClick={() => {
+            setQuantity((q) => Math.max(1, q - 1));
+            setSuccess("");
+          }}
+        >
+          −
+        </button>
+        <output aria-live="polite">{quantity}</output>
+        <button
+          type="button"
+          aria-label="+"
+          onClick={() => {
+            setQuantity((q) => Math.min(100, q + 1));
+            setSuccess("");
+          }}
+        >
+          +
+        </button>
+      </div>
+      <div className="price-box-v2" aria-live="polite">
+        <div className="price-line">
+          <span>
+            {product.name} · {size}
+          </span>
+          <b>{rp(quote.shirt)}</b>
+        </div>
+        <div className="price-line">
+          <span>
+            {tr("frontRow")} {frontPrint ? frontPrint.label : ""}
+          </span>
+          <b>{frontPrintId ? rp(quote.front) : "—"}</b>
+        </div>
+        <div className="price-line">
+          <span>
+            {tr("backRow")} {backPrint ? backPrint.label : ""}
+          </span>
+          <b>{backPrintId ? rp(quote.back) : "—"}</b>
+        </div>
+        <hr />
+        <div className="price-line total">
+          <span>
+            {tr("totalLabel")} <small>{tr("estimate", { qty: quantity })}</small>
+          </span>
+          <strong>{rp(quote.total)}</strong>
+        </div>
+        <p className="price-note">
+          {config.pricingIsExample ? tr("priceExample") : tr("priceShop")} ·{" "}
+          {tr("shippingNote")}
+        </p>
       </div>
       <form onSubmit={save} className="order-form">
         <label className="field-label" htmlFor="customer">
@@ -525,6 +458,54 @@ export default function PricingPanel({
           {tr("productionNote")}
         </p>
       </div>
+      <Dialog
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        className="detail-dialog-root"
+      >
+        <div className="detail-backdrop" aria-hidden="true" />
+        <div className="detail-wrap">
+          <DialogPanel className="detail-card">
+            <div className="detail-head">
+              <DialogTitle>{tr("sizeChartLink")}</DialogTitle>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={tr("doneLabel")}
+                onClick={() => setDetailOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="detail-group">
+              <SizeChart productId={productId} tr={tr} />
+            </div>
+            {frontPrint && (
+              <MaskingFigure
+                print={frontPrint}
+                side="front"
+                usedLabel={quote.frontPrintLabel}
+                tr={tr}
+              />
+            )}
+            {backPrint && (
+              <MaskingFigure
+                print={backPrint}
+                side="back"
+                usedLabel={quote.backPrintLabel}
+                tr={tr}
+              />
+            )}
+            <button
+              type="button"
+              className="primary full-width"
+              onClick={() => setDetailOpen(false)}
+            >
+              {tr("doneLabel")}
+            </button>
+          </DialogPanel>
+        </div>
+      </Dialog>
     </section>
   );
 }
