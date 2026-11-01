@@ -126,7 +126,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.16;
+        renderer.toneMappingExposure = 0.95;
         mount.appendChild(renderer.domElement);
         const scene = new THREE.Scene();
         const pmrem = new THREE.PMREMGenerator(renderer);
@@ -135,10 +135,10 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           0.04,
         ).texture;
         const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 100);
-        const key = new THREE.DirectionalLight(0xffffff, 1.6);
+        const key = new THREE.DirectionalLight(0xffffff, 1.25);
         key.position.set(1.2, 2.2, 2.4);
         scene.add(key);
-        scene.add(new THREE.HemisphereLight(0xffffff, 0x8a93a8, 0.65));
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x8a93a8, 0.5));
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;

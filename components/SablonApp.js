@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -66,68 +66,56 @@ const normRot = (deg) => {
   return Math.round(d * 10) / 10;
 };
 
-// Kotak desain di kiri mockup (revisi user Nov 2026, menggantikan
-// editor kanvas): menampilkan gambar desain sisi aktif + tombol
-// geser/perbesar/perkecil/putar yang bekerja di mockup 2D dan 3D.
-function DesignBox({ tr, side, artwork, transform, onPatch, onReset }) {
-  const tf = transform || IDENTITY_TF;
-  const step = 0.04;
+// Pratinjau desain melayang DI ATAS mockup (revisi user 2 Nov 2026:
+// kotak tombol di kiri mockup dihilangkan; preview menimpa/overlap
+// area mockup). Pengeditan posisi memakai frame seret di mockup 2D
+// dan toolbar tipis melayang di bawah panggung (StageTools).
+function DesignOverlay({ tr, side, artwork }) {
   return (
-    <aside className="design-box">
-      <div className="field-label">
+    <div className="design-overlay">
+      <div className="design-overlay-label">
         {tr("designBoxTitle")} · {tr(side === "front" ? "viewFront" : "viewBack")}
       </div>
-      <div className="design-box-preview">
+      <div className="design-overlay-preview">
         {artwork ? (
           <img src={artwork} alt="" />
         ) : (
           <p className="small-note">{tr("designEmpty")}</p>
         )}
       </div>
-      <div className="db-row">
-        <button type="button" className="db-btn" title={tr("actZoomOut")} aria-label={tr("actZoomOut")} onClick={() => onPatch({ scale: clampTf(tf.scale / 1.12, 0.2, 2.5) })}>
-          <Minus size={15} />
-        </button>
-        <button type="button" className="db-btn" title={tr("actZoomIn")} aria-label={tr("actZoomIn")} onClick={() => onPatch({ scale: clampTf(tf.scale * 1.12, 0.2, 2.5) })}>
-          <Plus size={15} />
-        </button>
-        <button type="button" className="db-btn" title={tr("actRotateLeft")} aria-label={tr("actRotateLeft")} onClick={() => onPatch({ rot: normRot(tf.rot - 15) })}>
-          <RotateCcw size={15} />
-        </button>
-        <button type="button" className="db-btn" title={tr("actRotateRight")} aria-label={tr("actRotateRight")} onClick={() => onPatch({ rot: normRot(tf.rot + 15) })}>
-          <RotateCw size={15} />
-        </button>
-      </div>
-      <div className="db-move">
-        <span />
-        <button type="button" className="db-btn" title={tr("moveUp")} aria-label={tr("moveUp")} onClick={() => onPatch({ dy: clampTf(tf.dy - step, -0.6, 0.6) })}>
-          <ArrowUp size={15} />
-        </button>
-        <span />
-        <button type="button" className="db-btn" title={tr("moveLeft")} aria-label={tr("moveLeft")} onClick={() => onPatch({ dx: clampTf(tf.dx - step, -0.6, 0.6) })}>
-          <ArrowLeft size={15} />
-        </button>
-        <button type="button" className="db-btn" title={tr("editReset")} aria-label={tr("editReset")} onClick={onReset}>
-          <Crosshair size={14} />
-        </button>
-        <button type="button" className="db-btn" title={tr("moveRight")} aria-label={tr("moveRight")} onClick={() => onPatch({ dx: clampTf(tf.dx + step, -0.6, 0.6) })}>
-          <ArrowRight size={15} />
-        </button>
-        <span />
-        <button type="button" className="db-btn" title={tr("moveDown")} aria-label={tr("moveDown")} onClick={() => onPatch({ dy: clampTf(tf.dy + step, -0.6, 0.6) })}>
-          <ArrowDown size={15} />
-        </button>
-        <span />
-      </div>
-      <p className="small-note">{tr("designBoxHint")}</p>
-    </aside>
+    </div>
+  );
+}
+
+// Toolbar edit melayang di bawah panggung: perbesar/perkecil/putar/
+// reset — bekerja di tampilan 2D maupun 3D (geser via frame di 2D).
+function StageTools({ tr, transform, onPatch, onReset }) {
+  const tf = transform || IDENTITY_TF;
+  return (
+    <div className="stage-tools-float">
+      <button type="button" className="db-btn" title={tr("actZoomOut")} aria-label={tr("actZoomOut")} onClick={() => onPatch({ scale: clampTf(tf.scale / 1.12, 0.2, 2.5) })}>
+        <Minus size={15} />
+      </button>
+      <button type="button" className="db-btn" title={tr("actZoomIn")} aria-label={tr("actZoomIn")} onClick={() => onPatch({ scale: clampTf(tf.scale * 1.12, 0.2, 2.5) })}>
+        <Plus size={15} />
+      </button>
+      <button type="button" className="db-btn" title={tr("actRotateLeft")} aria-label={tr("actRotateLeft")} onClick={() => onPatch({ rot: normRot(tf.rot - 15) })}>
+        <RotateCcw size={15} />
+      </button>
+      <button type="button" className="db-btn" title={tr("actRotateRight")} aria-label={tr("actRotateRight")} onClick={() => onPatch({ rot: normRot(tf.rot + 15) })}>
+        <RotateCw size={15} />
+      </button>
+      <button type="button" className="db-btn" title={tr("editReset")} aria-label={tr("editReset")} onClick={onReset}>
+        <Crosshair size={14} />
+      </button>
+    </div>
   );
 }
 
 // Frame edit di atas mockup 2D: seret untuk memindah, gagang sudut
 // untuk skala, gagang atas untuk memutar. Koordinat dihitung dari
 // geometri area cetak yang dilaporkan MockupCanvas (getGeometry).
-function MockupFrame({ mockupRef, artwork, transform, onChange }) {
+function MockupFrame({ geometry, artwork, transform, onChange }) {
   const rootRef = useRef(null);
   const [box, setBox] = useState(null);
   const [artSize, setArtSize] = useState(null);
@@ -140,7 +128,9 @@ function MockupFrame({ mockupRef, artwork, transform, onChange }) {
     let alive = true;
     const img = new Image();
     img.onload = () => {
-      if (alive) setArtSize({ w: img.width, h: img.height });
+      // Simpan juga src-nya: ukuran gambar lama tidak boleh dipakai
+      // untuk desain baru (penyebab frame "bergeser" versi sebelumnya).
+      if (alive) setArtSize({ src: artwork, w: img.width, h: img.height });
     };
     img.src = artwork;
     return () => {
@@ -152,8 +142,8 @@ function MockupFrame({ mockupRef, artwork, transform, onChange }) {
       const root = rootRef.current;
       const holder = root ? root.parentElement : null;
       const canvasEl = holder ? holder.querySelector("canvas.mockup-canvas") : null;
-      const geo = mockupRef.current ? mockupRef.current.getGeometry() : null;
-      if (!root || !holder || !canvasEl || !geo || !artSize) {
+      const geo = geometry;
+      if (!root || !holder || !canvasEl || !geo || !artSize || artSize.src !== artwork) {
         setBox(null);
         return;
       }
@@ -182,12 +172,10 @@ function MockupFrame({ mockupRef, artwork, transform, onChange }) {
     const holder = rootRef.current ? rootRef.current.parentElement : null;
     const ro = holder && window.ResizeObserver ? new ResizeObserver(measure) : null;
     if (ro && holder) ro.observe(holder);
-    const poll = setInterval(measure, 600);
     return () => {
       if (ro) ro.disconnect();
-      clearInterval(poll);
     };
-  }, [artwork, artSize, tf, mockupRef]);
+  }, [artwork, artSize, tf, geometry]);
   if (!box) return <div ref={rootRef} className="mockup-frame-root" />;
   const startDrag = (e, mode) => {
     e.preventDefault();
@@ -323,6 +311,19 @@ export default function SablonApp() {
     back: { ...IDENTITY_TF },
   });
   const tfOf = (side) => transformsBySide[side] || IDENTITY_TF;
+  // Geometri area cetak persis dari render terakhir MockupCanvas —
+  // dasar frame edit (menggantikan polling getGeometry yang bisa
+  // memakai geometri basi sesaat setelah ukuran/orientasi berubah).
+  const [mockGeom, setMockGeom] = useState(null);
+  const handleGeom = useCallback(
+    (g) =>
+      setMockGeom((prev) =>
+        prev && prev.px === g.px && prev.py === g.py && prev.pw === g.pw && prev.ph === g.ph
+          ? prev
+          : g,
+      ),
+    [],
+  );
   const patchTransform = (patch) =>
     setTransformsBySide((prev) => ({
       ...prev,
@@ -801,20 +802,7 @@ export default function SablonApp() {
                       </button>
                     </div>
                   </div>
-                  <div className="stage-body">
-                    <DesignBox
-                      tr={tr}
-                      side={side2d}
-                      artwork={
-                        (side2d === "front" ? frontPrintId : backPrintId)
-                          ? sideArtwork(side2d)
-                          : null
-                      }
-                      transform={tfOf(side2d)}
-                      onPatch={patchTransform}
-                      onReset={() => setTransform({ ...IDENTITY_TF })}
-                    />
-                    <div className="mockup-stage">
+                  <div className="mockup-stage">
                     {view === "3d" && (
                       <ShirtViewer3D
                         frontTransform={tfOf("front")}
@@ -839,11 +827,12 @@ export default function SablonApp() {
                         printHeight={side2d === "back" && backDims ? backDims.hCm : frontDims.hCm}
                         showArea={showArea && (side2d === "front" ? Boolean(frontPrintId) : Boolean(backPrintId))}
                         transform={tfOf(side2d)}
+                        onGeometry={handleGeom}
                       />
                       {view === "2d" &&
                         (side2d === "front" ? frontPrintId : backPrintId) && (
                           <MockupFrame
-                            mockupRef={mockup}
+                            geometry={mockGeom}
                             artwork={sideArtwork(side2d)}
                             transform={tfOf(side2d)}
                             onChange={setTransform}
@@ -869,7 +858,23 @@ export default function SablonApp() {
                         </span>
                       </>
                     )}
-                    </div>
+                    {(side2d === "front" ? frontPrintId : backPrintId) ? (
+                      <>
+                        <DesignOverlay
+                          tr={tr}
+                          side={side2d}
+                          artwork={sideArtwork(side2d)}
+                        />
+                        {sideArtwork(side2d) ? (
+                          <StageTools
+                            tr={tr}
+                            transform={tfOf(side2d)}
+                            onPatch={patchTransform}
+                            onReset={() => setTransform({ ...IDENTITY_TF })}
+                          />
+                        ) : null}
+                      </>
+                    ) : null}
                   </div>
                 </section>
                 <div className="stage-bottom">

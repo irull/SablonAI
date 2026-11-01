@@ -8,9 +8,6 @@ import {
   Dialog,
   DialogPanel,
   DialogTitle,
-  Disclosure,
-  DisclosureButton,
-  DisclosurePanel,
 } from "@headlessui/react";
 import { translate } from "../lib/i18n";
 import {
@@ -60,12 +57,10 @@ function SizeChart({ productId, tr }) {
     productId === "kaos-anak"
       ? "/assets/size-chart/kaos-anak.jpg"
       : "/assets/size-chart/kaos-dewasa.jpg";
+  // Langsung tampil (permintaan user Nov 2026): klik "Size chart" di
+  // panel = isi tabel muncul di dialog, tanpa klik kedua.
   return (
-    <Disclosure>
-      <DisclosureButton className="text-button size-chart-toggle">
-        {tr("sizeChartToggle")}
-      </DisclosureButton>
-      <DisclosurePanel>
+    <div className="size-chart-direct">
         <table className="size-chart-table">
           <thead>
             <tr>
@@ -93,8 +88,7 @@ function SizeChart({ productId, tr }) {
           alt={tr("chartImgAlt")}
           loading="lazy"
         />
-      </DisclosurePanel>
-    </Disclosure>
+    </div>
   );
 }
 
@@ -505,7 +499,7 @@ export default function PricingPanel({
       >
         <div className="detail-backdrop" aria-hidden="true" />
         <div className="detail-wrap">
-          <DialogPanel className="detail-card">
+          <DialogPanel className="detail-card pos-card">
             <div className="detail-head">
               <DialogTitle>{tr("printPositionLink")}</DialogTitle>
               <button
@@ -517,18 +511,20 @@ export default function PricingPanel({
                 <X size={18} />
               </button>
             </div>
-            {activePrint && (
-              <MaskingFigure
-                print={activePrint}
-                side={side}
-                usedLabel={
-                  side === "front"
-                    ? quote.frontPrintLabel
-                    : quote.backPrintLabel
-                }
-                tr={tr}
-              />
-            )}
+            <div className="pos-grid">
+              {["10x10", "A5", "A4", "A3"].map((pid) => {
+                const print = config.printSizes.find((p) => p.id === pid);
+                return print && MASKING_IMAGES[print.id] ? (
+                  <MaskingFigure
+                    key={pid}
+                    print={print}
+                    side="front"
+                    usedLabel={print.label}
+                    tr={tr}
+                  />
+                ) : null;
+              })}
+            </div>
             <button
               type="button"
               className="primary full-width"

@@ -30,7 +30,7 @@ const makeCanvas = (w, h) =>
 // py lama 222/740 = 0.30, jadi fraksi 0.30 ini konsisten dengan
 // area cetak lama saat foto mengisi penuh tinggi kanvas.
 const MockupCanvas = forwardRef(function MockupCanvas(
-  { artwork, color, printWidth, printHeight, showArea, side = "front", transform },
+  { artwork, color, printWidth, printHeight, showArea, side = "front", transform, onGeometry },
   ref,
 ) {
   const canvas = useRef(null);
@@ -96,6 +96,9 @@ const MockupCanvas = forwardRef(function MockupCanvas(
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, 800, 740);
         ctx.drawImage(photo, rect.x, rect.y, rect.w, rect.h);
+        // Warna Putih (#f2f0e8): foto asli SUDAH putih — lewati tint
+        // perkalian yang membuat kaos terlihat abu-abu (keluhan user).
+        const isWhite = (color || "").toLowerCase() === "#f2f0e8";
         const tint = makeCanvas(800, 740),
           tc = tint.getContext("2d");
         tc.fillStyle = color;
@@ -109,12 +112,13 @@ const MockupCanvas = forwardRef(function MockupCanvas(
           recolored.data[i + 3] = mask.data[i + 3];
         }
         tc.putImageData(recolored, 0, 0);
-        ctx.drawImage(tint, 0, 0);
+        if (!isWhite) ctx.drawImage(tint, 0, 0);
         const pw = printWidth * 7,
           ph = printHeight * 7;
         const px = rect.x + (rect.w - pw) / 2,
           py = rect.y + rect.h * (side === "back" ? 0.25 : 0.3);
         geom.current = { px, py, pw, ph };
+        if (onGeometry) onGeometry(geom.current);
         if (art) {
           const layer = makeCanvas(800, 740),
             lc = layer.getContext("2d");
@@ -196,7 +200,7 @@ const MockupCanvas = forwardRef(function MockupCanvas(
     return () => {
       renderId.current++;
     };
-  }, [ready, artwork, color, printWidth, printHeight, showArea, side, transform]);
+  }, [ready, artwork, color, printWidth, printHeight, showArea, side, transform, onGeometry]);
 
   return (
     <>
