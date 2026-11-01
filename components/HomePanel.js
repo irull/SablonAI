@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight, ArrowUpRight, MessageCircle, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight, MessageCircle, Plus, Sparkles } from "lucide-react";
 import { config, formatRupiah as rp, sampleBriefs } from "../lib/config";
 import { translate } from "../lib/i18n";
 
@@ -9,7 +9,7 @@ import { translate } from "../lib/i18n";
 // (Rp30.000) = Rp80.000; kartu polos = harga kaos saja.
 const DESIGN_CARD_PRICE = 50000 + 30000;
 
-export default function HomePanel({ onStudio, onUseDesign, onCustomize, onCatalog, t }) {
+export default function HomePanel({ onStudio, onUseDesign, onCustomize, onCollection, onAddCart, t }) {
   const tr = t || ((key, vars) => translate("id", key, vars));
   return (
     <div className="home-panel">
@@ -30,7 +30,7 @@ export default function HomePanel({ onStudio, onUseDesign, onCustomize, onCatalo
             >
               {tr("homeCtaStudio")} <ArrowUpRight size={16} />
             </button>
-            <button type="button" className="text-link" onClick={onCatalog}>
+            <button type="button" className="text-link" onClick={onCollection}>
               {tr("homeCtaCatalog")} <ArrowRight size={15} />
             </button>
           </div>
@@ -75,7 +75,7 @@ export default function HomePanel({ onStudio, onUseDesign, onCustomize, onCatalo
           ))}
         </div>
       </div>
-      <section className="home-collection">
+      <section className="home-collection" id="koleksi">
         <div className="section-top">
           <div>
             <div className="eyebrow">{tr("homeCollEyebrow")}</div>
@@ -109,6 +109,22 @@ export default function HomePanel({ onStudio, onUseDesign, onCustomize, onCatalo
                   >
                     {tr("homeCollUse")}
                   </button>
+                  <button
+                    type="button"
+                    className="round-btn"
+                    aria-label={tr("cartAdd") + " — " + s.title}
+                    title={tr("cartAdd")}
+                    onClick={() =>
+                      onAddCart({
+                        title: s.title,
+                        designTitle: s.title,
+                        artwork: s.image,
+                        frontPrintId: "A4",
+                      })
+                    }
+                  >
+                    <Plus size={16} />
+                  </button>
                 </div>
               </div>
             </article>
@@ -133,6 +149,22 @@ export default function HomePanel({ onStudio, onUseDesign, onCustomize, onCatalo
                   onClick={() => onStudio("upload")}
                 >
                   {tr("homeCtaStudio")}
+                </button>
+                <button
+                  type="button"
+                  className="round-btn"
+                  aria-label={tr("cartAdd") + " — " + config.products[0].name}
+                  title={tr("cartAdd")}
+                  onClick={() =>
+                    onAddCart({
+                      title: config.products[0].name,
+                      designTitle: "",
+                      artwork: null,
+                      frontPrintId: null,
+                    })
+                  }
+                >
+                  <Plus size={16} />
                 </button>
               </div>
             </div>

@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
-  ChevronRight,
   CircleHelp,
   ClipboardList,
   Download,
@@ -12,14 +11,12 @@ import {
   Images,
   Languages,
   Layers3,
-  Moon,
-  PackageSearch,
   Save,
   Shirt,
   Shapes,
+  ShoppingBag,
   SlidersHorizontal,
   Sparkles,
-  Sun,
   Type,
   Upload,
   X,
@@ -31,24 +28,19 @@ import PricingPanel from "./PricingPanel";
 import HomePanel from "./HomePanel";
 import { orientedDimensions } from "../lib/pricing";
 import OrderDashboard from "./OrderDashboard";
-import CatalogPanel from "./CatalogPanel";
+import CartPanel from "./CartPanel";
 import TrackingPanel from "./TrackingPanel";
 import {
   artworkDataURL,
+  buildCartOrder,
   readOrders,
   writeOrders,
   orderStatuses,
 } from "../lib/orders";
+import { newCartItemId, readCart, writeCart } from "../lib/cart";
 import { translate } from "../lib/i18n";
-import { config, sampleBriefs } from "../lib/config";
+import { config, formatRupiah, sampleBriefs } from "../lib/config";
 
-const tabs = [
-  { id: "beranda", labelKey: "tabHome", icon: Home },
-  { id: "studio", labelKey: "tabStudio", icon: SlidersHorizontal },
-  { id: "katalog", labelKey: "tabCatalog", icon: Shirt },
-  { id: "lacak", labelKey: "tabTrack", icon: PackageSearch },
-  { id: "dashboard", labelKey: "tabDashboard", icon: ClipboardList },
-];
 const studioTools = [
   { id: "ai", labelKey: "toolAi", icon: Sparkles },
   { id: "upload", labelKey: "toolUpload", icon: Upload },
@@ -60,23 +52,23 @@ const SAVE_KEY = "sablonai.savedDesign.v1";
 
 export default function SablonApp() {
   const [tab, setTab] = useState("beranda");
-  const [theme, setTheme] = useState("light");
+  // Dark mode dihilangkan (permintaan user Nov 2026): tema selalu
+  // terang palet hijau-terracotta; yang tersisa hanya pilihan bahasa.
   const [lang, setLang] = useState("id");
   const tr = (key, vars) => translate(lang, key, vars);
   useEffect(() => {
+    document.documentElement.removeAttribute("data-theme");
     try {
-      if (localStorage.getItem("sablonai.theme") === "dark") setTheme("dark");
+      localStorage.removeItem("sablonai.theme");
       if (localStorage.getItem("sablonai.lang") === "en") setLang("en");
     } catch {}
   }, []);
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
     document.documentElement.lang = lang === "en" ? "en" : "id";
     try {
-      localStorage.setItem("sablonai.theme", theme);
       localStorage.setItem("sablonai.lang", lang);
     } catch {}
-  }, [theme, lang]);
+  }, [lang]);
   const [color, setColor] = useState(config.colors[0]);
   const [productId, setProductId] = useState("kaos-pendek");
   const [size, setSize] = useState("L");
@@ -323,6 +315,120 @@ export default function SablonApp() {
     setOrders(next);
     return order;
   }
+  // Keranjang: item dari Koleksi kaos & Studio DIY, disimpan lokal.
+  const [cart, setCart] = useState([]);
+  useEffect(() => {
+    setCart(readCart(localStorage));
+  }, []);
+  function commitCart(next) {
+    setCart(next);
+    writeCart(localStorage, next);
+  }
+  const [appToast, setAppToast] = useState("");
+  const appToastTimer = useRef(null);
+  function flashApp(msg) {
+    setAppToast(msg);
+    clearTimeout(appToastTimer.current);
+    appToastTimer.current = setTimeout(() => setAppToast(""), 2600);
+  }
+  function addToCart(partial) {
+    const item = {
+      id: newCartItemId(),
+      title: partial.title || "",
+      productId: partial.productId || "kaos-pendek",
+      size: partial.size || "L",
+      colorName: partial.colorName || config.colors[0].name,
+      frontPrintId: partial.frontPrintId ?? "A4",
+      backPrintId: partial.backPrintId ?? null,
+      frontOrientation: partial.frontOrientation || "portrait",
+      backOrientation: partial.backOrientation || "portrait",
+      quantity: partial.quantity || 1,
+      artwork: partial.artwork || null,
+      backArtwork: partial.backArtwork || null,
+      designTitle: partial.designTitle || partial.title || "",
+    };
+    commitCart([item, ...cart]);
+    flashApp(tr("cartAdded"));
+  }
+  function addStudioToCart(qty) {
+    const product = config.products.find((p) => p.id === productId);
+    addToCart({
+      title: design.title || (product ? product.name : ""),
+      productId,
+      size,
+      colorName: color.name,
+      frontPrintId,
+      backPrintId,
+      frontOrientation,
+      backOrientation,
+      quantity: qty || 1,
+      artwork: frontPrintId ? sideArtwork("front") : null,
+      backArtwork: backPrintId ? sideArtwork("back") : null,
+      designTitle: design.title,
+    });
+  }
+  async function checkoutCart({ customer, phone }) {
+    if (storageError) throw new Error(storageError);
+    if (!cart.length) throw new Error(tr("cartEmpty"));
+    const built = [];
+    for (const item of cart) {
+      let art = null;
+      let backArt = null;
+      try {
+        if (item.artwork) art = await artworkDataURL(item.artwork);
+      } catch {}
+      try {
+        if (item.backArtwork) backArt = await artworkDataURL(item.backArtwork);
+      } catch {}
+      built.push(
+        buildCartOrder({ customer, phone, item, artwork: art, backArtwork: backArt }),
+      );
+    }
+    const next = [...built, ...readOrders(localStorage)];
+    writeOrders(localStorage, next);
+    setOrders(next);
+    const totalAll = built.reduce((sum, o) => sum + o.quote.total, 0);
+    const lines = built.map(
+      (o) =>
+        "• " +
+        o.design.title +
+        " — " +
+        o.product +
+        " " +
+        o.size +
+        " " +
+        (o.color && o.color.name ? o.color.name : "") +
+        " ×" +
+        o.quantity +
+        " — " +
+        formatRupiah(o.quote.total),
+    );
+    const text =
+      "Halo SablonAI, saya " +
+      customer +
+      " mau pesan:\n" +
+      lines.join("\n") +
+      "\nTotal: " +
+      formatRupiah(totalAll) +
+      "\nID order: " +
+      built.map((o) => o.id).join(", ");
+    commitCart([]);
+    return {
+      waLink:
+        "https://wa.me/" +
+        config.whatsappNumber +
+        "?text=" +
+        encodeURIComponent(text),
+      count: built.length,
+    };
+  }
+  function goCollection() {
+    setTab("beranda");
+    setTimeout(() => {
+      const el = document.getElementById("koleksi");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    }, 90);
+  }
   async function changeStatus(id, status) {
     if (!orderStatuses.includes(status)) throw new Error("Status tidak valid.");
     const next = readOrders(localStorage).map((o) =>
@@ -331,74 +437,76 @@ export default function SablonApp() {
     writeOrders(localStorage, next);
     setOrders(next);
   }
-  const activeTab = tabs.find((t) => t.id === tab);
   return (
     <div className="app-shell">
-      <aside className="rail" aria-label={tr("studioNavHome")}>
-        <a href="/" className="logo-mark" aria-label={tr("homeLabel")}>
-          <Layers3 size={26} />
-        </a>
-        <div className="rail-links">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              className={tab === t.id ? "rail-item active" : "rail-item"}
-              aria-label={tr(t.labelKey)}
-              title={tr(t.labelKey)}
-              onClick={() => setTab(t.id)}
-            >
-              <t.icon size={21} />
-            </button>
-          ))}
-        </div>
-        <button
-          className="rail-help"
-          aria-label={tr("guideLabel")}
-          onClick={() => setHelp(true)}
-        >
-          <CircleHelp size={21} />
-        </button>
-        <div className="rail-prefs">
-          <button
-            className="pref-button"
-            aria-label={tr("themeToggle")}
-            title={tr("themeToggle")}
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
-          </button>
-          <button
-            className="pref-button"
-            aria-label={tr("langToggle")}
-            title={tr("langToggle")}
-            onClick={() => setLang(lang === "en" ? "id" : "en")}
-          >
-            <Languages size={19} />
-            <span className="lang-badge">{lang === "en" ? "EN" : "ID"}</span>
-          </button>
-        </div>
-        <div className="avatar">SA</div>
-      </aside>
       <div className="workspace">
         <header className="topbar">
-          <a href="/" className="wordmark">
-            sablon<span>ai</span>
-            <i />
+          <a href="/" className="brand-lockup" aria-label={tr("homeLabel")}>
+            <span className="logo-mark">
+              <Layers3 size={24} />
+            </span>
+            <span className="wordmark">
+              sablon<span>ai</span>
+              <i />
+            </span>
           </a>
-          <div className="breadcrumb">
-            Workspace <ChevronRight size={13} />{" "}
-            <strong>{activeTab ? tr(activeTab.labelKey) : tr("breadcrumbStudio")}</strong>
-          </div>
+          <nav className="main-nav" aria-label={tr("studioNavHome")}>
+            <button
+              type="button"
+              className={tab === "beranda" ? "nav-link active" : "nav-link"}
+              onClick={() => setTab("beranda")}
+            >
+              <Home size={16} /> {tr("tabHome")}
+            </button>
+            <button
+              type="button"
+              className={tab === "studio" ? "nav-link active" : "nav-link"}
+              onClick={() => setTab("studio")}
+            >
+              <SlidersHorizontal size={16} /> {tr("tabStudio")}
+            </button>
+            <button type="button" className="nav-link" onClick={goCollection}>
+              <Shirt size={16} /> {tr("navCollection")}
+            </button>
+          </nav>
           <div className="top-right">
             <span className="demo-badge">
               <span /> {mode === "demo" ? tr("modeDemo") : tr("modeLive")}
             </span>
+            <button
+              type="button"
+              className={tab === "pesanan" ? "nav-link active" : "nav-link"}
+              onClick={() => setTab("pesanan")}
+            >
+              <ClipboardList size={16} /> {tr("tabOrders")}
+            </button>
+            <button
+              type="button"
+              className="nav-icon-btn"
+              aria-label={tr("cartTitle")}
+              title={tr("cartTitle")}
+              onClick={() => setTab("keranjang")}
+            >
+              <ShoppingBag size={20} />
+              {cart.length > 0 && (
+                <span className="cart-badge">{cart.length}</span>
+              )}
+            </button>
+            <button
+              className="pref-button"
+              aria-label={tr("langToggle")}
+              title={tr("langToggle")}
+              onClick={() => setLang(lang === "en" ? "id" : "en")}
+            >
+              <Languages size={19} />
+              <span className="lang-badge">{lang === "en" ? "EN" : "ID"}</span>
+            </button>
             <button className="help-button" onClick={() => setHelp(true)}>
               <CircleHelp size={16} /> {tr("help")}
             </button>
           </div>
         </header>
-        <main>
+        <main className={tab === "studio" ? "main-studio" : undefined}>
           {tab === "beranda" && (
             <HomePanel
               t={tr}
@@ -418,7 +526,8 @@ export default function SablonApp() {
                 setTool("upload");
                 setView("canvas");
               }}
-              onCatalog={() => setTab("katalog")}
+              onCollection={goCollection}
+              onAddCart={addToCart}
             />
           )}
           {(tab === "studio" || editorOpened) && (
@@ -518,7 +627,7 @@ export default function SablonApp() {
                         t={tr}
                       />
                     )}
-                    <div className={view === "2d" ? "" : "mockup-keeper"}>
+                    <div className={view === "2d" ? "mockup-live" : "mockup-keeper"}>
                       <MockupCanvas
                         ref={mockup}
                         side={side2d}
@@ -595,7 +704,8 @@ export default function SablonApp() {
                   color={color}
                   onColor={setColor}
                   onOrder={createOrder}
-                  onDashboard={() => setTab("dashboard")}
+                  onAddToCart={addStudioToCart}
+                  onDashboard={() => setTab("pesanan")}
                 />
               </div>
               <p className="side-note studio-side-note">
@@ -604,20 +714,37 @@ export default function SablonApp() {
               </p>
             </div>
           )}
-          {tab === "lacak" && (
-            <TrackingPanel orders={orders} t={tr} lang={lang} />
+          {tab === "pesanan" && (
+            <div className="orders-page">
+              <TrackingPanel orders={orders} t={tr} lang={lang} />
+              <OrderDashboard
+                t={tr}
+                lang={lang}
+                orders={orders}
+                onStatus={changeStatus}
+                onNew={() => setTab("studio")}
+                error={storageError}
+              />
+            </div>
           )}
-          {tab === "katalog" && (
-            <CatalogPanel onSave={saveExternalOrder} t={tr} />
-          )}
-          {tab === "dashboard" && (
-            <OrderDashboard
+          {tab === "keranjang" && (
+            <CartPanel
               t={tr}
-              lang={lang}
-              orders={orders}
-              onStatus={changeStatus}
-              onNew={() => setTab("studio")}
-              error={storageError}
+              items={cart}
+              onQty={(id, q) =>
+                commitCart(
+                  cart.map((i) =>
+                    i.id === id
+                      ? { ...i, quantity: Math.min(100, Math.max(1, q)) }
+                      : i,
+                  ),
+                )
+              }
+              onRemove={(id) => commitCart(cart.filter((i) => i.id !== id))}
+              onCheckout={checkoutCart}
+              onStudio={() => setTab("studio")}
+              onCollection={goCollection}
+              onOrders={() => setTab("pesanan")}
             />
           )}
           <footer>
@@ -632,6 +759,11 @@ export default function SablonApp() {
           </footer>
         </main>
       </div>
+      {appToast && (
+        <div className="app-toast" role="status">
+          {appToast}
+        </div>
+      )}
       {help && (
         <div className="modal-backdrop" onClick={() => setHelp(false)}>
           <section

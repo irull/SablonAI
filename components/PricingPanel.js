@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { ArrowRight, CheckCheck, LoaderCircle, X } from "lucide-react";
+import { ArrowRight, CheckCheck, LoaderCircle, ShoppingBag, X } from "lucide-react";
 import { config, formatRupiah as rp } from "../lib/config";
 import { calculatePrice, getProduct } from "../lib/pricing";
 import ColourGroup from "./ui/ColourGroup";
@@ -121,6 +121,7 @@ export default function PricingPanel({
   color,
   onColor,
   onOrder,
+  onAddToCart,
   onDashboard,
   t,
 }) {
@@ -427,6 +428,13 @@ export default function PricingPanel({
           {tr("saveOrder")}
         </button>
       </form>
+      <button
+        type="button"
+        className="secondary full-width cart-add-btn"
+        onClick={() => onAddToCart && onAddToCart(quantity)}
+      >
+        <ShoppingBag size={15} /> {tr("studioAddCart")}
+      </button>
       {error && (
         <p className="error" role="alert">
           {error}

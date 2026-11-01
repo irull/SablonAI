@@ -55,7 +55,7 @@ const CLIPARTS = [
   { id: "smile", label: "Smile", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#FFD60A"/><circle cx="35" cy="42" r="5" fill="#333"/><circle cx="65" cy="42" r="5" fill="#333"/><path d="M30 62 C38 74 62 74 70 62" stroke="#333" stroke-width="5" fill="none" stroke-linecap="round"/></svg>' },
 ];
 const TEMPLATES = [
-  { id: "komunitas", name: "Komunitas", title: "GOWES PAGI", sub: "KOMUNITAS SEPEDA", font: "Bebas Neue", color: "#101460", clip: "sun" },
+  { id: "komunitas", name: "Komunitas", title: "GOWES PAGI", sub: "KOMUNITAS SEPEDA", font: "Bebas Neue", color: "#21493c", clip: "sun" },
   { id: "usaha", name: "Usaha Lokal", title: "Kopi Dulu", sub: "NGOPI - SANTAI - ULANGI", font: "Dancing Script", color: "#7A4A21", clip: "heart" },
   { id: "sport", name: "Sport", title: "NO PAIN", sub: "NO GLORY", font: "Anton", color: "#3442CA", clip: "bolt" },
   { id: "vintage", name: "Vintage", title: "Sejak 1998", sub: "ORIGINAL - CLASSIC", font: "Playfair Display", color: "#354E40", clip: "crown" },
@@ -119,7 +119,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
   const [text, setText] = useState(tr("edDefaultText")),
-    [textColor, setTextColor] = useState("#101460"),
+    [textColor, setTextColor] = useState("#21493c"),
     [subject, setSubject] = useState("logo");
   const [zoom, setZoomState] = useState(1),
     [layers, setLayers] = useState([]),
@@ -302,7 +302,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     else if (key === "strokeWidth")
       o.set({
         strokeWidth: value,
-        stroke: value > 0 ? o.fill || "#101460" : o.stroke,
+        stroke: value > 0 ? o.fill || "#21493c" : o.stroke,
       });
     o.setCoords();
     c.requestRenderAll();

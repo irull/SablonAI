@@ -12,7 +12,7 @@ export default function RootLayout({ children }) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('sablonai.theme');if(t==='dark'){document.documentElement.dataset.theme='dark';}var l=localStorage.getItem('sablonai.lang');if(l==='en'){document.documentElement.lang='en';}}catch(e){}",
+              "try{var l=localStorage.getItem('sablonai.lang');if(l==='en'){document.documentElement.lang='en';}}catch(e){}",
           }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
