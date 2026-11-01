@@ -1,0 +1,8 @@
+design1 90000
+design2 70000
+design3 90000
+design4 90000
+design5 11000
+design6 12000
+design7 80000
+design8 90000
