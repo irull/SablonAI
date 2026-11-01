@@ -134,6 +134,7 @@ export default function PricingPanel({
   const [lastOrder, setLastOrder] = useState(null);
   const [phone, setPhone] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
+  const [posOpen, setPosOpen] = useState(false);
   // Ukuran sablon terakhir per sisi, supaya checklist yang dimatikan
   // lalu dinyalakan lagi kembali ke ukuran sebelumnya.
   const lastPrint = useRef({ front: "A4", back: "A4" });
@@ -321,15 +322,14 @@ export default function PricingPanel({
         {tr("printThisSide")}
       </label>
       <p className="small-note">{tr("printSideNote")}</p>
-      {activePrint && (
-        <MaskingFigure
-          print={activePrint}
-          side={side}
-          usedLabel={
-            side === "front" ? quote.frontPrintLabel : quote.backPrintLabel
-          }
-          tr={tr}
-        />
+      {activePrint && MASKING_IMAGES[activePrint.id] && (
+        <button
+          type="button"
+          className="text-button pos-link"
+          onClick={() => setPosOpen(true)}
+        >
+          {tr("printPositionLink")} ↗
+        </button>
       )}
       <div className="field-label">{tr("qtyLabel")}</div>
       <div className="qty-stepper">
@@ -488,26 +488,51 @@ export default function PricingPanel({
             <div className="detail-group">
               <SizeChart productId={productId} tr={tr} />
             </div>
-            {frontPrint && (
+            <button
+              type="button"
+              className="primary full-width"
+              onClick={() => setDetailOpen(false)}
+            >
+              {tr("doneLabel")}
+            </button>
+          </DialogPanel>
+        </div>
+      </Dialog>
+      <Dialog
+        open={posOpen}
+        onClose={() => setPosOpen(false)}
+        className="detail-dialog-root"
+      >
+        <div className="detail-backdrop" aria-hidden="true" />
+        <div className="detail-wrap">
+          <DialogPanel className="detail-card">
+            <div className="detail-head">
+              <DialogTitle>{tr("printPositionLink")}</DialogTitle>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={tr("doneLabel")}
+                onClick={() => setPosOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {activePrint && (
               <MaskingFigure
-                print={frontPrint}
-                side="front"
-                usedLabel={quote.frontPrintLabel}
-                tr={tr}
-              />
-            )}
-            {backPrint && (
-              <MaskingFigure
-                print={backPrint}
-                side="back"
-                usedLabel={quote.backPrintLabel}
+                print={activePrint}
+                side={side}
+                usedLabel={
+                  side === "front"
+                    ? quote.frontPrintLabel
+                    : quote.backPrintLabel
+                }
                 tr={tr}
               />
             )}
             <button
               type="button"
               className="primary full-width"
-              onClick={() => setDetailOpen(false)}
+              onClick={() => setPosOpen(false)}
             >
               {tr("doneLabel")}
             </button>

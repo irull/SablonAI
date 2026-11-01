@@ -1,7 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowLeft,
   ArrowRight,
+  ArrowUp,
+  Crosshair,
+  Minus,
+  Plus,
+  RotateCcw,
+  RotateCw,
   CircleHelp,
   ClipboardList,
   Download,
@@ -23,7 +31,7 @@ import {
 } from "lucide-react";
 import MockupCanvas from "./MockupCanvas";
 import ShirtViewer3D from "./ShirtViewer3D";
-import EditorCanvas from "./EditorCanvas";
+import StudioTools from "./StudioTools";
 import PricingPanel from "./PricingPanel";
 import HomePanel from "./HomePanel";
 import { orientedDimensions } from "../lib/pricing";
@@ -49,6 +57,200 @@ const studioTools = [
   { id: "image", labelKey: "toolImage", icon: Images },
 ];
 const SAVE_KEY = "sablonai.savedDesign.v1";
+const IDENTITY_TF = { dx: 0, dy: 0, scale: 1, rot: 0 };
+const clampTf = (v, min, max) => Math.min(max, Math.max(min, v));
+const normRot = (deg) => {
+  let d = deg % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return Math.round(d * 10) / 10;
+};
+
+// Kotak desain di kiri mockup (revisi user Nov 2026, menggantikan
+// editor kanvas): menampilkan gambar desain sisi aktif + tombol
+// geser/perbesar/perkecil/putar yang bekerja di mockup 2D dan 3D.
+function DesignBox({ tr, side, artwork, transform, onPatch, onReset }) {
+  const tf = transform || IDENTITY_TF;
+  const step = 0.04;
+  return (
+    <aside className="design-box">
+      <div className="field-label">
+        {tr("designBoxTitle")} · {tr(side === "front" ? "viewFront" : "viewBack")}
+      </div>
+      <div className="design-box-preview">
+        {artwork ? (
+          <img src={artwork} alt="" />
+        ) : (
+          <p className="small-note">{tr("designEmpty")}</p>
+        )}
+      </div>
+      <div className="db-row">
+        <button type="button" className="db-btn" title={tr("actZoomOut")} aria-label={tr("actZoomOut")} onClick={() => onPatch({ scale: clampTf(tf.scale / 1.12, 0.2, 2.5) })}>
+          <Minus size={15} />
+        </button>
+        <button type="button" className="db-btn" title={tr("actZoomIn")} aria-label={tr("actZoomIn")} onClick={() => onPatch({ scale: clampTf(tf.scale * 1.12, 0.2, 2.5) })}>
+          <Plus size={15} />
+        </button>
+        <button type="button" className="db-btn" title={tr("actRotateLeft")} aria-label={tr("actRotateLeft")} onClick={() => onPatch({ rot: normRot(tf.rot - 15) })}>
+          <RotateCcw size={15} />
+        </button>
+        <button type="button" className="db-btn" title={tr("actRotateRight")} aria-label={tr("actRotateRight")} onClick={() => onPatch({ rot: normRot(tf.rot + 15) })}>
+          <RotateCw size={15} />
+        </button>
+      </div>
+      <div className="db-move">
+        <span />
+        <button type="button" className="db-btn" title={tr("moveUp")} aria-label={tr("moveUp")} onClick={() => onPatch({ dy: clampTf(tf.dy - step, -0.6, 0.6) })}>
+          <ArrowUp size={15} />
+        </button>
+        <span />
+        <button type="button" className="db-btn" title={tr("moveLeft")} aria-label={tr("moveLeft")} onClick={() => onPatch({ dx: clampTf(tf.dx - step, -0.6, 0.6) })}>
+          <ArrowLeft size={15} />
+        </button>
+        <button type="button" className="db-btn" title={tr("editReset")} aria-label={tr("editReset")} onClick={onReset}>
+          <Crosshair size={14} />
+        </button>
+        <button type="button" className="db-btn" title={tr("moveRight")} aria-label={tr("moveRight")} onClick={() => onPatch({ dx: clampTf(tf.dx + step, -0.6, 0.6) })}>
+          <ArrowRight size={15} />
+        </button>
+        <span />
+        <button type="button" className="db-btn" title={tr("moveDown")} aria-label={tr("moveDown")} onClick={() => onPatch({ dy: clampTf(tf.dy + step, -0.6, 0.6) })}>
+          <ArrowDown size={15} />
+        </button>
+        <span />
+      </div>
+      <p className="small-note">{tr("designBoxHint")}</p>
+    </aside>
+  );
+}
+
+// Frame edit di atas mockup 2D: seret untuk memindah, gagang sudut
+// untuk skala, gagang atas untuk memutar. Koordinat dihitung dari
+// geometri area cetak yang dilaporkan MockupCanvas (getGeometry).
+function MockupFrame({ mockupRef, artwork, transform, onChange }) {
+  const rootRef = useRef(null);
+  const [box, setBox] = useState(null);
+  const [artSize, setArtSize] = useState(null);
+  const tf = transform || IDENTITY_TF;
+  useEffect(() => {
+    if (!artwork) {
+      setArtSize(null);
+      return;
+    }
+    let alive = true;
+    const img = new Image();
+    img.onload = () => {
+      if (alive) setArtSize({ w: img.width, h: img.height });
+    };
+    img.src = artwork;
+    return () => {
+      alive = false;
+    };
+  }, [artwork]);
+  useEffect(() => {
+    const measure = () => {
+      const root = rootRef.current;
+      const holder = root ? root.parentElement : null;
+      const canvasEl = holder ? holder.querySelector("canvas.mockup-canvas") : null;
+      const geo = mockupRef.current ? mockupRef.current.getGeometry() : null;
+      if (!root || !holder || !canvasEl || !geo || !artSize) {
+        setBox(null);
+        return;
+      }
+      const cr = canvasEl.getBoundingClientRect();
+      const wr = holder.getBoundingClientRect();
+      if (cr.width < 10) {
+        setBox(null);
+        return;
+      }
+      const k = cr.width / 800;
+      const fit = Math.min(geo.pw / artSize.w, geo.ph / artSize.h);
+      const dw = artSize.w * fit * (tf.scale || 1);
+      const dh = artSize.h * fit * (tf.scale || 1);
+      const cx = geo.px + geo.pw / 2 + (tf.dx || 0) * geo.pw;
+      const cy = geo.py + geo.ph / 2 + (tf.dy || 0) * geo.ph;
+      setBox({
+        left: cr.left - wr.left + (cx - dw / 2) * k,
+        top: cr.top - wr.top + (cy - dh / 2) * k,
+        w: dw * k,
+        h: dh * k,
+        k,
+        geo,
+      });
+    };
+    measure();
+    const holder = rootRef.current ? rootRef.current.parentElement : null;
+    const ro = holder && window.ResizeObserver ? new ResizeObserver(measure) : null;
+    if (ro && holder) ro.observe(holder);
+    const poll = setInterval(measure, 600);
+    return () => {
+      if (ro) ro.disconnect();
+      clearInterval(poll);
+    };
+  }, [artwork, artSize, tf, mockupRef]);
+  if (!box) return <div ref={rootRef} className="mockup-frame-root" />;
+  const startDrag = (e, mode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX,
+      startY = e.clientY;
+    const start = { ...tf };
+    const holder = rootRef.current.parentElement;
+    const wr = holder.getBoundingClientRect();
+    const ccx = wr.left + box.left + box.w / 2;
+    const ccy = wr.top + box.top + box.h / 2;
+    const d0 = Math.max(
+      8,
+      Math.hypot(startX - ccx, startY - ccy),
+    );
+    const a0 = Math.atan2(startY - ccy, startX - ccx);
+    const move = (ev) => {
+      if (mode === "move") {
+        onChange({
+          ...start,
+          dx: clampTf(start.dx + (ev.clientX - startX) / box.k / box.geo.pw, -0.6, 0.6),
+          dy: clampTf(start.dy + (ev.clientY - startY) / box.k / box.geo.ph, -0.6, 0.6),
+        });
+      } else if (mode === "scale") {
+        const d1 = Math.hypot(ev.clientX - ccx, ev.clientY - ccy);
+        onChange({ ...start, scale: clampTf((start.scale * d1) / d0, 0.2, 2.5) });
+      } else if (mode === "rotate") {
+        const a1 = Math.atan2(ev.clientY - ccy, ev.clientX - ccx);
+        onChange({ ...start, rot: normRot(start.rot + ((a1 - a0) * 180) / Math.PI) });
+      }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return (
+    <div ref={rootRef} className="mockup-frame-root">
+      <div
+        className="design-frame"
+        style={{
+          left: box.left,
+          top: box.top,
+          width: box.w,
+          height: box.h,
+          transform: `rotate(${tf.rot || 0}deg)`,
+        }}
+        onPointerDown={(e) => startDrag(e, "move")}
+      >
+        <span
+          className="frame-rotate"
+          onPointerDown={(e) => startDrag(e, "rotate")}
+        />
+        <span
+          className="frame-handle"
+          onPointerDown={(e) => startDrag(e, "scale")}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function SablonApp() {
   const [tab, setTab] = useState("beranda");
@@ -111,18 +313,30 @@ export default function SablonApp() {
     [help, setHelp] = useState(false),
     [full, setFull] = useState(false);
   const [mode, setMode] = useState(config.demoMode ? "demo" : "live");
-  const [editedBySide, setEditedBySide] = useState({ front: null, back: null });
   const design = designsBySide.front;
   const sideDesign = (side) => designsBySide[side] || designsBySide.front;
-  const sideArtwork = (side) => editedBySide[side] || sideDesign(side).image;
+  const sideArtwork = (side) => sideDesign(side).image;
+  // Posisi desain di mockup per sisi (revisi user Nov 2026): dx/dy
+  // fraksi area cetak, scale pengali ukuran pas, rot derajat.
+  const [transformsBySide, setTransformsBySide] = useState({
+    front: { ...IDENTITY_TF },
+    back: { ...IDENTITY_TF },
+  });
+  const tfOf = (side) => transformsBySide[side] || IDENTITY_TF;
+  const patchTransform = (patch) =>
+    setTransformsBySide((prev) => ({
+      ...prev,
+      [side2d]: { ...(prev[side2d] || IDENTITY_TF), ...patch },
+    }));
+  const setTransform = (next) =>
+    setTransformsBySide((prev) => ({ ...prev, [side2d]: next }));
   const [editorOpened, setEditorOpened] = useState(false);
   useEffect(() => {
     if (tab === "studio") setEditorOpened(true);
   }, [tab]);
-  const editor = useRef(null);
   const updateDesign = (d) => {
     setDesignsBySide((prev) => ({ ...prev, [side2d]: d }));
-    setEditedBySide((prev) => ({ ...prev, [side2d]: null }));
+    setTransformsBySide((prev) => ({ ...prev, [side2d]: { ...IDENTITY_TF } }));
   };
   const mockup = useRef(null);
   const choose = (s) => {
@@ -130,7 +344,6 @@ export default function SablonApp() {
   };
   const chooseTool = (id) => {
     setTool(id);
-    setView(id === "ai" ? "2d" : "canvas");
   };
   const [studioMsg, setStudioMsg] = useState("");
   const studioMsgTimer = useRef(null);
@@ -154,9 +367,7 @@ export default function SablonApp() {
         frontOrientation,
         backOrientation,
         designsBySide,
-        editedBySide,
-        editorJSON: editor.current?.exportJSON() || null,
-        editorSide: side2d,
+        transformsBySide,
       };
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
       flashStudio(tr("msgDesignSaved"));
@@ -184,13 +395,9 @@ export default function SablonApp() {
       if (d.frontOrientation) setFrontOrientation(d.frontOrientation);
       if (d.backOrientation) setBackOrientation(d.backOrientation);
       if (d.designsBySide) setDesignsBySide(d.designsBySide);
-      if (d.editedBySide) setEditedBySide(d.editedBySide);
+      if (d.transformsBySide) setTransformsBySide(d.transformsBySide);
       if (d.tool) setTool(d.tool);
-      setSide2d(d.editorSide || d.side2d || "front");
-      if (d.editorJSON)
-        setTimeout(() => {
-          editor.current?.loadJSON(d.editorJSON);
-        }, 450);
+      setSide2d(d.side2d || "front");
       flashStudio(tr("msgDesignRestored"));
     } catch {
       flashStudio(tr("msgNoSaved"));
@@ -202,9 +409,6 @@ export default function SablonApp() {
     if (view === "2d") {
       url = mockup.current?.export();
       name = "sablonai-mockup-" + side2d + ".jpg";
-    } else if (view === "canvas") {
-      url = editor.current?.exportPNG();
-      name = "sablonai-desain.png";
     } else {
       url = sideArtwork(side2d);
       name = "sablonai-desain.png";
@@ -249,28 +453,20 @@ export default function SablonApp() {
   }
   async function createOrder(details) {
     if (storageError) throw new Error(storageError);
-    const inStudio = tab === "studio";
-    const fromEditor = inStudio && tool !== "ai";
-    if (fromEditor && !editor.current?.exportJSON()?.objects?.length)
-      throw new Error("Tambahkan gambar atau teks sebelum membuat order.");
-    const editorArtwork = fromEditor ? editor.current?.exportPNG() : null;
-    if (fromEditor && (!editorArtwork || editorArtwork !== editedBySide[side2d]))
-      throw new Error(
-        "Editor sedang memperbarui desain. Tunggu sebentar lalu simpan kembali.",
-      );
     const preview = mockup.current?.export();
     if (!preview)
       throw new Error(
         "Mockup sedang diperbarui. Tunggu sebentar lalu simpan kembali.",
       );
-    const artwork = await artworkDataURL(
-      fromEditor && side2d === "front" ? editorArtwork : sideArtwork("front"),
-    );
-    const backArtwork = backPrintId
-      ? await artworkDataURL(
-          fromEditor && side2d === "back" ? editorArtwork : sideArtwork("back"),
-        )
-      : null;
+    const safeArt = async (src) => {
+      try {
+        return await artworkDataURL(src);
+      } catch {
+        return null;
+      }
+    };
+    const artwork = await safeArt(sideArtwork("front"));
+    const backArtwork = backPrintId ? await safeArt(sideArtwork("back")) : null;
     const order = {
       ...details,
       id:
@@ -291,7 +487,7 @@ export default function SablonApp() {
       preview,
       artwork,
       backArtwork,
-      source: fromEditor ? "editor" : "generate",
+      source: tool === "ai" ? "generate" : "editor",
       pricingIsExample: config.pricingIsExample,
       design: {
         title: design.title,
@@ -300,8 +496,9 @@ export default function SablonApp() {
         demo: design.demo !== false,
         trace: design.trace || null,
       },
-      editorJSON: fromEditor ? editor.current?.exportJSON() : null,
-      editorSide: fromEditor ? side2d : null,
+      editorJSON: null,
+      editorSide: null,
+      transforms: transformsBySide,
     };
     const next = [order, ...readOrders(localStorage)];
     writeOrders(localStorage, next);
@@ -570,27 +767,17 @@ export default function SablonApp() {
                   ))}
                 </div>
                 {editorOpened && (
-                  <EditorCanvas
-                    key={side2d}
+                  <StudioTools
                     t={tr}
-                    ref={editor}
                     tool={tool}
-                    stageHidden={view !== "canvas"}
-                    initialImage={sideArtwork(side2d)}
-                    onChange={(url) => setEditedBySide((prev) => ({ ...prev, [side2d]: url }))}
+                    design={sideDesign(side2d)}
+                    onSetDesign={updateDesign}
                     mode={mode}
-                    aiDesign={sideDesign(side2d)}
-                    onAiDesign={updateDesign}
-                    onAiMode={setMode}
-                    onRevealMockup={() => setView("2d")}
+                    onMode={setMode}
                   />
                 )}
                 <section
-                  className={
-                    "stage-panel card" +
-                    (full ? " fullscreen" : "") +
-                    (view === "canvas" ? " stage-off" : "")
-                  }
+                  className={"stage-panel card" + (full ? " fullscreen" : "")}
                 >
                   <div className="stage-top">
                     <div>
@@ -614,9 +801,24 @@ export default function SablonApp() {
                       </button>
                     </div>
                   </div>
-                  <div className="mockup-stage">
+                  <div className="stage-body">
+                    <DesignBox
+                      tr={tr}
+                      side={side2d}
+                      artwork={
+                        (side2d === "front" ? frontPrintId : backPrintId)
+                          ? sideArtwork(side2d)
+                          : null
+                      }
+                      transform={tfOf(side2d)}
+                      onPatch={patchTransform}
+                      onReset={() => setTransform({ ...IDENTITY_TF })}
+                    />
+                    <div className="mockup-stage">
                     {view === "3d" && (
                       <ShirtViewer3D
+                        frontTransform={tfOf("front")}
+                        backTransform={tfOf("back")}
                         artwork={frontPrintId ? sideArtwork("front") : null}
                         backArtwork={backPrintId ? sideArtwork("back") : null}
                         backWidthCm={backDims ? backDims.wCm : 0}
@@ -636,7 +838,17 @@ export default function SablonApp() {
                         printWidth={side2d === "back" && backDims ? backDims.wCm : frontDims.wCm}
                         printHeight={side2d === "back" && backDims ? backDims.hCm : frontDims.hCm}
                         showArea={showArea && (side2d === "front" ? Boolean(frontPrintId) : Boolean(backPrintId))}
+                        transform={tfOf(side2d)}
                       />
+                      {view === "2d" &&
+                        (side2d === "front" ? frontPrintId : backPrintId) && (
+                          <MockupFrame
+                            mockupRef={mockup}
+                            artwork={sideArtwork(side2d)}
+                            transform={tfOf(side2d)}
+                            onChange={setTransform}
+                          />
+                        )}
                     </div>
                     {view === "2d" && (
                       <>
@@ -657,6 +869,7 @@ export default function SablonApp() {
                         </span>
                       </>
                     )}
+                    </div>
                   </div>
                 </section>
                 <div className="stage-bottom">
@@ -668,15 +881,8 @@ export default function SablonApp() {
                       {tr("viewBack")}
                     </button>
                   </div>
-                  <span className="stage-hint">
-                    {view === "canvas"
-                      ? tr("stageHintCanvas") + " · " + tr("printAreaNote")
-                      : tr("stageHintMockup")}
-                  </span>
+                  <span className="stage-hint">{tr("stageHintMockup")}</span>
                   <div className="view-toggle" role="group" aria-label={tr("viewModeLabel")}>
-                    <button type="button" className={"seg" + (view === "canvas" ? " on" : "")} aria-pressed={view === "canvas"} onClick={() => setView("canvas")}>
-                      {tr("viewCanvas")}
-                    </button>
                     <button type="button" className={"seg" + (view === "2d" ? " on" : "")} aria-pressed={view === "2d"} onClick={() => setView("2d")}>
                       2D
                     </button>

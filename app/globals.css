@@ -2717,3 +2717,63 @@ body { background: var(--bg); }
   .wordmark { font-size: 21px; }
   .cart-item { flex-wrap: wrap; }
 }
+
+/* ===== Section 5: design box + on-mockup editing (revisi Nov 2026) ===== */
+/* Kanvas fabric dihapus: panggung = kotak desain (kiri) + mockup. */
+.stage-panel { display: flex; flex-direction: column; }
+.stage-body { display: flex; flex: 1; min-height: 0; }
+.stage-body .mockup-stage { flex: 1; min-width: 0; }
+.design-box {
+  width: 228px; flex-shrink: 0; border-right: 1px solid var(--line);
+  padding: 14px 12px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--paper); overflow-y: auto; border-radius: 16px 0 0 16px;
+}
+.design-box-preview {
+  aspect-ratio: 1 / 1; border: 1px dashed var(--line); border-radius: 10px;
+  background: var(--soft); display: grid; place-items: center; overflow: hidden;
+  padding: 8px; text-align: center;
+}
+.design-box-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.db-row { display: flex; gap: 6px; }
+.db-btn {
+  flex: 1; height: 34px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
+  color: var(--ink); cursor: pointer;
+}
+.db-btn:hover { border-color: var(--olive); color: var(--olive); }
+.db-move {
+  display: grid; grid-template-columns: repeat(3, 40px);
+  justify-content: center; gap: 5px;
+}
+.db-move .db-btn { flex: none; width: 40px; }
+.mockup-frame-root { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.design-frame {
+  position: absolute; border: 1.5px solid var(--violet); border-radius: 2px;
+  cursor: move; touch-action: none; pointer-events: auto;
+}
+.design-frame .frame-handle {
+  position: absolute; right: -8px; bottom: -8px; width: 15px; height: 15px;
+  background: var(--violet); border: 2px solid #fff; border-radius: 3px;
+  cursor: nwse-resize;
+}
+.design-frame .frame-rotate {
+  position: absolute; left: 50%; top: -27px; width: 16px; height: 16px;
+  margin-left: -8px; border-radius: 50%; background: var(--paper);
+  border: 1.5px solid var(--violet); cursor: grab;
+}
+.design-frame .frame-rotate::after {
+  content: ""; position: absolute; left: 50%; top: 15px; width: 1.5px;
+  height: 11px; background: var(--violet); transform: translateX(-50%);
+}
+.pos-link { margin: 2px 0 4px; }
+.tool-status { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 2px; }
+@media (max-width: 1080px) {
+  .stage-body { flex-direction: column; }
+  .design-box {
+    width: auto; border-right: 0; border-bottom: 1px solid var(--line);
+    border-radius: 16px 16px 0 0; flex-direction: row; flex-wrap: wrap;
+    align-items: center; overflow-y: visible;
+  }
+  .design-box-preview { width: 96px; flex-shrink: 0; }
+  .design-box .small-note { flex-basis: 100%; }
+}

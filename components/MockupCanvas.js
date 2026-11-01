@@ -11,6 +11,7 @@ import {
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("Gambar mockup tidak dapat dibuka."));
     img.src = src;
@@ -29,7 +30,7 @@ const makeCanvas = (w, h) =>
 // py lama 222/740 = 0.30, jadi fraksi 0.30 ini konsisten dengan
 // area cetak lama saat foto mengisi penuh tinggi kanvas.
 const MockupCanvas = forwardRef(function MockupCanvas(
-  { artwork, color, printWidth, printHeight, showArea, side = "front" },
+  { artwork, color, printWidth, printHeight, showArea, side = "front", transform },
   ref,
 ) {
   const canvas = useRef(null);
@@ -38,9 +39,11 @@ const MockupCanvas = forwardRef(function MockupCanvas(
   const [error, setError] = useState("");
   const renderId = useRef(0);
   const completed = useRef(false);
+  const geom = useRef(null);
   useImperativeHandle(ref, () => ({
     export: () =>
       completed.current ? canvas.current?.toDataURL("image/jpeg", 0.85) : null,
+    getGeometry: () => geom.current,
   }));
 
   useEffect(() => {
@@ -111,13 +114,27 @@ const MockupCanvas = forwardRef(function MockupCanvas(
           ph = printHeight * 7;
         const px = rect.x + (rect.w - pw) / 2,
           py = rect.y + rect.h * (side === "back" ? 0.25 : 0.3);
+        geom.current = { px, py, pw, ph };
         if (art) {
           const layer = makeCanvas(800, 740),
             lc = layer.getContext("2d");
           const scale = Math.min(pw / art.width, ph / art.height);
           const aw = art.width * scale,
             ah = art.height * scale;
-          lc.drawImage(art, px + (pw - aw) / 2, py + (ph - ah) / 2, aw, ah);
+          const tf = transform || {};
+          const tScale = tf.scale || 1,
+            tRot = ((tf.rot || 0) * Math.PI) / 180;
+          lc.save();
+          lc.beginPath();
+          lc.rect(px, py, pw, ph);
+          lc.clip();
+          lc.translate(
+            px + pw / 2 + (tf.dx || 0) * pw,
+            py + ph / 2 + (tf.dy || 0) * ph,
+          );
+          lc.rotate(tRot);
+          lc.drawImage(art, (-aw * tScale) / 2, (-ah * tScale) / 2, aw * tScale, ah * tScale);
+          lc.restore();
           const original = lc.getImageData(0, 0, 800, 740);
           const displaced = lc.createImageData(800, 740);
           for (
@@ -179,7 +196,7 @@ const MockupCanvas = forwardRef(function MockupCanvas(
     return () => {
       renderId.current++;
     };
-  }, [ready, artwork, color, printWidth, printHeight, showArea, side]);
+  }, [ready, artwork, color, printWidth, printHeight, showArea, side, transform]);
 
   return (
     <>

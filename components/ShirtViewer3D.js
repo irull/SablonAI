@@ -79,7 +79,7 @@ function surfaceZ2(x, y) {
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
 
-export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, color, t }) {
+export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, frontTransform, backTransform, color, t }) {
   const tr = t || ((key, vars) => translate("id", key, vars));
   const mountRef = useRef(null);
   const world = useRef(null);
@@ -92,9 +92,13 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   const backRef = useRef(backArtwork);
   const backDimsRef = useRef({ w: backWidthCm, h: backHeightCm });
   const frontDimsRef = useRef({ w: frontWidthCm, h: frontHeightCm });
+  const frontTfRef = useRef(frontTransform || null);
+  const backTfRef = useRef(backTransform || null);
   artworkRef.current = artwork;
   colorRef.current = color;
   backRef.current = backArtwork;
+  frontTfRef.current = frontTransform || null;
+  backTfRef.current = backTransform || null;
   backDimsRef.current = { w: backWidthCm, h: backHeightCm };
   frontDimsRef.current = { w: frontWidthCm, h: frontHeightCm };
 
@@ -278,7 +282,15 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       cv.height = 1024;
       const cx = cv.getContext("2d");
       const s = Math.min(1024 / img.width, 1024 / img.height);
-      cx.drawImage(img, (1024 - img.width * s) / 2, (1024 - img.height * s) / 2, img.width * s, img.height * s);
+      const dw = img.width * s;
+      const dh = img.height * s;
+      const tf = backTfRef.current || {};
+      const tScale = tf.scale || 1;
+      cx.save();
+      cx.translate(512 - (tf.dx || 0) * 1024, 512 + (tf.dy || 0) * 1024);
+      cx.rotate(((-(tf.rot || 0)) * Math.PI) / 180);
+      cx.drawImage(img, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
+      cx.restore();
       const tex = new THREE.CanvasTexture(cv);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
@@ -360,7 +372,16 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       const scale = Math.min(rw / img.width, rh / img.height);
       const dw = img.width * scale;
       const dh = img.height * scale;
-      cx.drawImage(img, rx + (rw - dw) / 2, ry + (rh - dh) / 2, dw, dh);
+      const tf = frontTfRef.current || {};
+      const tScale = tf.scale || 1;
+      cx.save();
+      cx.beginPath();
+      cx.rect(rx, ry, rw, rh);
+      cx.clip();
+      cx.translate(rx + rw / 2 + (tf.dx || 0) * rw, ry + rh / 2 + (tf.dy || 0) * rh);
+      cx.rotate(((tf.rot || 0) * Math.PI) / 180);
+      cx.drawImage(img, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
+      cx.restore();
       const tex = new THREE.CanvasTexture(canvas);
       tex.flipY = false;
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -405,7 +426,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   useEffect(() => {
     if (status === "ready") applyArtwork();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artwork, frontWidthCm, frontHeightCm, status]);
+  }, [artwork, frontWidthCm, frontHeightCm, frontTransform, status]);
   useEffect(() => {
     if (status === "ready") applyColor();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -413,7 +434,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   useEffect(() => {
     if (status === "ready") applyBack();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backArtwork, backWidthCm, backHeightCm, status]);
+  }, [backArtwork, backWidthCm, backHeightCm, backTransform, status]);
 
   function resetView() {
     const w = world.current;
