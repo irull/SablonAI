@@ -41,8 +41,8 @@ import TrackingPanel from "./TrackingPanel";
 import {
   artworkDataURL,
   buildCartOrder,
-  readOrders,
-  writeOrders,
+  loadOrders,
+  saveOrders,
   orderStatuses,
 } from "../lib/orders";
 import { newCartItemId, readCart, writeCart } from "../lib/cart";
@@ -468,16 +468,23 @@ export default function SablonApp() {
   }
   const [orders, setOrders] = useState([]),
     [storageError, setStorageError] = useState("");
+  const ordersLoaded = useRef(false);
   useEffect(() => {
+    let alive = true;
     const sync = () => {
-      try {
-        setOrders(readOrders(localStorage));
-        setStorageError("");
-      } catch (e) {
-        setStorageError(e.message);
-      }
+      loadOrders()
+        .then((o) => {
+          if (!alive) return;
+          ordersLoaded.current = true;
+          setOrders(o);
+          setStorageError("");
+        })
+        .catch((e) => {
+          if (alive) setStorageError(e.message);
+        });
     };
     sync();
+    window.addEventListener("focus", sync);
     window.addEventListener("storage", sync);
     const escape = (e) => {
       if (e.key === "Escape") {
@@ -487,10 +494,20 @@ export default function SablonApp() {
     };
     window.addEventListener("keydown", escape);
     return () => {
+      alive = false;
+      window.removeEventListener("focus", sync);
       window.removeEventListener("storage", sync);
       window.removeEventListener("keydown", escape);
     };
   }, []);
+  // Persistensi order ke IndexedDB setiap state berubah (setelah
+  // muat awal selesai, supaya daftar kosong awal tidak menimpa data).
+  useEffect(() => {
+    if (!ordersLoaded.current) return;
+    saveOrders(orders)
+      .then(() => setStorageError(""))
+      .catch((e) => setStorageError(e.message));
+  }, [orders]);
   function changeProduct(nextProductId) {
     setProductId(nextProductId);
     const nextProduct = config.products.find((p) => p.id === nextProductId);
@@ -547,16 +564,12 @@ export default function SablonApp() {
       editorSide: null,
       transforms: transformsBySide,
     };
-    const next = [order, ...readOrders(localStorage)];
-    writeOrders(localStorage, next);
-    setOrders(next);
+    setOrders((prev) => [order, ...prev]);
     return order;
   }
   async function saveExternalOrder(order) {
     if (storageError) throw new Error(storageError);
-    const next = [order, ...readOrders(localStorage)];
-    writeOrders(localStorage, next);
-    setOrders(next);
+    setOrders((prev) => [order, ...prev]);
     return order;
   }
   // Keranjang: item dari Koleksi kaos & Studio DIY, disimpan lokal.
@@ -628,9 +641,7 @@ export default function SablonApp() {
         buildCartOrder({ customer, phone, item, artwork: art, backArtwork: backArt }),
       );
     }
-    const next = [...built, ...readOrders(localStorage)];
-    writeOrders(localStorage, next);
-    setOrders(next);
+    setOrders((prev) => [...built, ...prev]);
     const totalAll = built.reduce((sum, o) => sum + o.quote.total, 0);
     const lines = built.map(
       (o) =>
@@ -675,11 +686,7 @@ export default function SablonApp() {
   }
   async function changeStatus(id, status) {
     if (!orderStatuses.includes(status)) throw new Error("Status tidak valid.");
-    const next = readOrders(localStorage).map((o) =>
-      o.id === id ? { ...o, status } : o,
-    );
-    writeOrders(localStorage, next);
-    setOrders(next);
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
   }
   return (
     <div className="app-shell">
