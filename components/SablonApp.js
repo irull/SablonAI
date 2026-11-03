@@ -281,23 +281,30 @@ export default function SablonApp() {
   const frontPrint =
     config.printSizes.find((p) => p.id === frontPrintId) ||
     config.printSizes[3];
-  const frontDims = orientedDimensions(frontPrint, frontOrientation) || {
+  // Panduan masking 2026-11-03: A3 (32x42) hanya potret, tanpa
+  // orientasi lanskap — paksa potret walau state/desain tersimpan
+  // masih menyebut lanskap.
+  const frontOrientationEff =
+    frontPrint.id === "A3" ? "portrait" : frontOrientation;
+  const frontDims = orientedDimensions(frontPrint, frontOrientationEff) || {
     wCm: frontPrint.wCm,
     hCm: frontPrint.hCm,
   };
   const frontIsLandscape =
-    frontOrientation === "landscape" && frontPrint.wCm !== frontPrint.hCm;
+    frontOrientationEff === "landscape" && frontPrint.wCm !== frontPrint.hCm;
   const backPrint = backPrintId
     ? config.printSizes.find((p) => p.id === backPrintId) || null
     : null;
+  const backOrientationEff =
+    backPrint && backPrint.id === "A3" ? "portrait" : backOrientation;
   const backDims = backPrint
-    ? orientedDimensions(backPrint, backOrientation) || {
+    ? orientedDimensions(backPrint, backOrientationEff) || {
         wCm: backPrint.wCm,
         hCm: backPrint.hCm,
       }
     : null;
   const backIsLandscape = Boolean(
-    backPrint && backOrientation === "landscape" && backPrint.wCm !== backPrint.hCm,
+    backPrint && backOrientationEff === "landscape" && backPrint.wCm !== backPrint.hCm,
   );
   const [designsBySide, setDesignsBySide] = useState({
     front: { ...sampleBriefs[0], demo: true },
@@ -949,8 +956,8 @@ export default function SablonApp() {
                   onSize={setSize}
                   onFrontPrint={setFrontPrintId}
                   onBackPrint={setBackPrintId}
-                  frontOrientation={frontOrientation}
-                  backOrientation={backOrientation}
+                  frontOrientation={frontOrientationEff}
+                  backOrientation={backOrientationEff}
                   onFrontOrientation={setFrontOrientation}
                   onBackOrientation={setBackOrientation}
                   side={side2d}

@@ -119,10 +119,28 @@ const MockupCanvas = forwardRef(function MockupCanvas(
         }
         tc.putImageData(recolored, 0, 0);
         if (!isWhite) ctx.drawImage(tint, 0, 0);
-        const pw = printWidth * 7,
-          ph = printHeight * 7;
-        const px = rect.x + (rect.w - pw) / 2,
-          py = rect.y + rect.h * (side === "back" ? 0.25 : 0.3);
+        // Masking panduan 2026-11-03: skala dari torso foto
+        // (lebar badan kaos di foto terukur +-316 unit untuk kaos
+        // +-47 cm -> 6,7 unit/cm; skala 7 lama membuat area
+        // kebesaran, 6,3 membuat A3 kekecilan kata user). Posisi
+        // RATA ATAS seperti panduan: tepi atas area di fraksi
+        // tetap tinggi foto (garmen foto: puncak +-0,14, ujung
+        // bawah +-0,98) — depan 0,354; belakang 0,27 (diturunkan
+        // dari 0,221, kata user terlalu atas); 10x10 depan di dada
+        // kiri (tengah +68 unit, tepi atas 0,368), 10x10 belakang
+        // 0,215.
+        const pw = printWidth * 6.7,
+          ph = printHeight * 6.7;
+        const ten =
+          printWidth === 10 && printHeight === 10;
+        let px = rect.x + (rect.w - pw) / 2;
+        let py;
+        if (side === "back") {
+          py = rect.y + rect.h * (ten ? 0.215 : 0.27);
+        } else {
+          py = rect.y + rect.h * (ten ? 0.368 : 0.354);
+          if (ten) px += 68;
+        }
         geom.current = { px, py, pw, ph };
         if (onGeometry) onGeometry(geom.current);
         if (art) {

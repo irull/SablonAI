@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, RefreshCcw, RotateCw } from "lucide-react";
 import { translate } from "../lib/i18n";
 import { artworkBox } from "../lib/artwork";
+import { frontTopY, frontCxOffset, backTopY } from "../lib/printPlacement";
 
 // Pemetaan tekstur panel depan, terukur dari UV model: sampledU =
 // 0.50007 + 3.5325 * xDunia dan sampledV = 5.2214 - 3.4411 * yDunia,
@@ -36,9 +37,61 @@ function bilinear(xs, ys, grid, x, y) {
   );
 }
 function frontPrintRect(widthCm, heightCm) {
-  const w = Math.min(0.999, Math.max(0.05, ((widthCm || 21) / 100) * FRONT_U_PER_M));
-  const h = Math.min(0.999, Math.max(0.05, ((heightCm || 28) / 100) * FRONT_V_PER_M));
-  return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
+  const wCm = widthCm || 21;
+  const hCm = heightCm || 28;
+  const w = Math.min(0.999, Math.max(0.05, (wCm / 100) * FRONT_U_PER_M));
+  const h = Math.min(0.999, Math.max(0.05, (hCm / 100) * FRONT_V_PER_M));
+  // Masking panduan 2026-11-03: RATA ATAS — tepi atas rect di
+  // frontTopY dunia (10x10 bergeser ke dada kiri), bukan rata
+  // tengah panel. Rect digeser masuk bila melebihi panel tekstur
+  // (panel hanya 29,6 x 29,8 cm, jadi A3 memenuhi panel), supaya
+  // garis masking selalu sama persis dengan tapak desain tercetak.
+  let y = 5.2214 - FRONT_V_PER_M * frontTopY(wCm, hCm);
+  y = Math.min(Math.max(y, 0), 1 - h);
+  const uC = 0.50007 + FRONT_U_PER_M * (FRONT_CX + frontCxOffset(wCm, hCm));
+  let x = uC - w / 2;
+  x = Math.min(Math.max(x, 0), 1 - w);
+  return { x, y, w, h };
+}
+// Ukuran cetak melebihi panel tekstur depan (29,6 x 29,8 cm) —
+// hanya A3 (32x42). Ukuran seperti ini dirender sebagai decal
+// permukaan badan ukuran asli (seperti sisi belakang), bukan
+// tekstur panel, supaya depan-belakang tampil sama besar.
+function frontExceedsPanel(wCm, hCm) {
+  return (
+    ((wCm || 21) / 100) * FRONT_U_PER_M > 0.999 ||
+    ((hCm || 28) / 100) * FRONT_V_PER_M > 0.999
+  );
+}
+// Rect area cetak depan efektif dalam meter dunia (hasil
+// frontPrintRect dibaca balik lewat pemetaan UV terukur) — dipakai
+// garis masking dan bidang seret, selalu sama dengan tapak desain.
+// Untuk ukuran melebihi panel: rect asli rata atas (mode decal).
+function frontAreaWorld(widthCm, heightCm) {
+  const wCm = widthCm || 21;
+  const hCm = heightCm || 28;
+  if (frontExceedsPanel(wCm, hCm)) {
+    const wM = wCm / 100;
+    const hM = hCm / 100;
+    return {
+      cx: FRONT_CX + frontCxOffset(wCm, hCm),
+      cy: frontTopY(wCm, hCm) - hM / 2,
+      w: wM,
+      h: hM,
+      decal: true,
+    };
+  }
+  const r = frontPrintRect(wCm, hCm);
+  const wM = r.w / FRONT_U_PER_M;
+  const hM = r.h / FRONT_V_PER_M;
+  const cx = (r.x + r.w / 2 - 0.50007) / FRONT_U_PER_M;
+  const top = (5.2214 - r.y) / FRONT_V_PER_M;
+  return { cx, cy: top - hM / 2, w: wM, h: hM, decal: false };
+}
+// Pusat y area cetak belakang: rata atas per panduan masking
+// (tepi atas di backTopY), menggantikan pusat tetap BACK_Y lama.
+function backCenterY(wCm, hCm) {
+  return backTopY(wCm || 28, hCm || 28) - (hCm || 28) / 100 / 2;
 }
 // Decal desain belakang: model tidak punya panel sablon belakang, jadi
 // desain belakang ditempel sebagai bidang tipis melengkung tepat di atas
@@ -178,6 +231,8 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           home: null,
           tex: null,
           frontSurf: null,
+          frontBodySurf: null,
+          frontDecal: null,
           guides: null,
           hitFront: null,
           hitBack: null,
@@ -266,6 +321,52 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
               }),
             );
             w.frontSurf = { xs, ys, grid };
+            // Sampel permukaan BADAN depan (mesh badan terlebar yang
+            // menghadap +z, digabung vertex panel): untuk decal
+            // ukuran yang melebihi panel tekstur (A3 32x42) supaya
+            // depan bisa tampil ukuran asli seperti belakang.
+            let bodyMesh = null;
+            let bodySpan = 0;
+            gltf.scene.traverse((obj) => {
+              if (!obj.isMesh || obj === printMesh) return;
+              const bb = new THREE.Box3().setFromObject(obj);
+              const span = bb.max.x - bb.min.x;
+              if (bb.max.z > 0.03 && span > bodySpan) {
+                bodySpan = span;
+                bodyMesh = obj;
+              }
+            });
+            if (bodyMesh && bodySpan > 0.4) {
+              const allVerts = verts.slice();
+              const bpos = bodyMesh.geometry.attributes.position;
+              const bv = new THREE.Vector3();
+              for (let i = 0; i < bpos.count; i++) {
+                bv.fromBufferAttribute(bpos, i).applyMatrix4(bodyMesh.matrixWorld);
+                allVerts.push([bv.x, bv.y, bv.z]);
+              }
+              const bxs = [];
+              for (let x = -0.2; x <= 0.201; x += 0.02) bxs.push(Math.round(x * 100) / 100);
+              const bys = [];
+              for (let y = 1.0; y <= 1.621; y += 0.02) bys.push(Math.round(y * 100) / 100);
+              const bgrid = bys.map((gy) =>
+                bxs.map((gx) => {
+                  let best = null;
+                  let bestD = Infinity;
+                  let cell = null;
+                  for (const [vx, vy, vz] of allVerts) {
+                    const dx = Math.abs(vx - gx);
+                    const dy = Math.abs(vy - gy);
+                    if (dx <= 0.013 && dy <= 0.013) {
+                      if (cell === null || vz > cell) cell = vz;
+                    }
+                    const d = dx * dx + dy * dy;
+                    if (d < bestD) { bestD = d; best = vz; }
+                  }
+                  return cell !== null ? cell : best !== null ? best : 0.1;
+                }),
+              );
+              w.frontBodySurf = { xs: bxs, ys: bys, grid: bgrid };
+            }
           }
         } catch (e) {
           w.frontSurf = null;
@@ -347,6 +448,26 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     if (w && w.frontSurf)
       return bilinear(w.frontSurf.xs, w.frontSurf.ys, w.frontSurf.grid, x, y);
     return 0.185;
+  }
+
+  // z permukaan badan depan (grid gabungan badan + panel) untuk
+  // area melebihi panel (decal A3); fallback ke grid panel.
+  function frontBodyZ(x, y) {
+    const w = world.current;
+    if (w && w.frontBodySurf)
+      return bilinear(w.frontBodySurf.xs, w.frontBodySurf.ys, w.frontBodySurf.grid, x, y);
+    return frontZ(x, y);
+  }
+
+  function removeFrontDecal() {
+    const w = world.current;
+    if (w && w.frontDecal) {
+      w.scene.remove(w.frontDecal);
+      w.frontDecal.geometry.dispose();
+      if (w.frontDecal.material.map) w.frontDecal.material.map.dispose();
+      w.frontDecal.material.dispose();
+      w.frontDecal = null;
+    }
   }
 
   // Garis masking area cetak + outline desain di 3D (permintaan user
@@ -439,18 +560,23 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       return pts;
     };
     if (showF) {
-      const pw = (frontDimsRef.current.w || 21) / 100;
-      const ph = (frontDimsRef.current.h || 28) / 100;
-      const zF = (x, y) => frontZ(x, y) + 0.006;
-      group.add(mkLine(rectPts(FRONT_CX, FRONT_CY, pw, ph, 0, zF), areaMat()));
+      const area = frontAreaWorld(
+        frontDimsRef.current.w || 21,
+        frontDimsRef.current.h || 28,
+      );
+      const pw = area.w;
+      const ph = area.h;
+      const zSurf = area.decal ? frontBodyZ : frontZ;
+      const zF = (x, y) => zSurf(x, y) + 0.006;
+      group.add(mkLine(rectPts(area.cx, area.cy, pw, ph, 0, zF), areaMat()));
       if (editF && w.designFrontFit) {
         const tf = frontTfRef.current || {};
         const sc = tf.scale || 1;
         group.add(
           mkLine(
             rectPts(
-              FRONT_CX + (tf.dx || 0) * pw,
-              FRONT_CY - (tf.dy || 0) * ph,
+              area.cx + (tf.dx || 0) * pw,
+              area.cy - (tf.dy || 0) * ph,
               w.designFrontFit.w * sc,
               w.designFrontFit.h * sc,
               -(tf.rot || 0),
@@ -466,11 +592,11 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         for (let i = 0; i < p.count; i++) {
           const lx = p.getX(i);
           const ly = p.getY(i);
-          p.setZ(i, frontZ(lx, FRONT_CY + ly) + 0.004);
+          p.setZ(i, zSurf(area.cx + lx, area.cy + ly) + 0.004);
         }
         geo.computeVertexNormals();
         const hit = new THREE.Mesh(geo, hitMat());
-        hit.position.set(FRONT_CX, FRONT_CY, 0);
+        hit.position.set(area.cx, area.cy, 0);
         w.scene.add(hit);
         w.hitFront = hit;
       }
@@ -478,10 +604,11 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     if (showB) {
       const bw = (backDimsRef.current.w || 28) / 100;
       const bh = (backDimsRef.current.h || 28) / 100;
+      const bCy = backCenterY(backDimsRef.current.w, backDimsRef.current.h);
       const holder = new THREE.Group();
       holder.rotation.y = Math.PI;
-      holder.position.y = BACK_Y;
-      const zB = (lx, ly) => BACK_LIFT - surfaceZ2(-lx, BACK_Y + ly) + 0.003;
+      holder.position.y = bCy;
+      const zB = (lx, ly) => BACK_LIFT - surfaceZ2(-lx, bCy + ly) + 0.003;
       holder.add(mkLine(rectPts(0, 0, bw, bh, 0, zB), areaMat()));
       if (editB && w.designBackFit) {
         const tf = backTfRef.current || {};
@@ -507,12 +634,12 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         for (let i = 0; i < p.count; i++) {
           const lx = p.getX(i);
           const ly = p.getY(i);
-          p.setZ(i, BACK_LIFT - surfaceZ2(-lx, BACK_Y + ly) + 0.002);
+          p.setZ(i, BACK_LIFT - surfaceZ2(-lx, bCy + ly) + 0.002);
         }
         geo.computeVertexNormals();
         const hit = new THREE.Mesh(geo, hitMat());
         hit.rotation.y = Math.PI;
-        hit.position.y = BACK_Y;
+        hit.position.y = bCy;
         w.scene.add(hit);
         w.hitBack = hit;
       }
@@ -624,13 +751,14 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       tex.anisotropy = 4;
       const bw = (backDimsRef.current.w || 28) / 100;
       const bh = (backDimsRef.current.h || 28) / 100;
+      const bCy = backCenterY(backDimsRef.current.w, backDimsRef.current.h);
       w.designBackFit = { w: (dw / 1024) * bw, h: (dh / 1024) * bh };
       const geo = new THREE.PlaneGeometry(bw, bh, 44, 22);
       const pos = geo.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const lx = pos.getX(i);
         const ly = pos.getY(i);
-        pos.setZ(i, BACK_LIFT - surfaceZ2(-lx, BACK_Y + ly));
+        pos.setZ(i, BACK_LIFT - surfaceZ2(-lx, bCy + ly));
       }
       geo.computeVertexNormals();
       const mat = new THREE.MeshStandardMaterial({
@@ -642,11 +770,113 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         side: THREE.DoubleSide,
       });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(0, BACK_Y, 0);
+      mesh.position.set(0, bCy, 0);
       mesh.rotation.y = Math.PI;
       w.scene.add(mesh);
       w.backDecal = mesh;
       applyGuides();
+    };
+    img.onerror = () => {};
+    img.src = src;
+  }
+
+  // Kosongkan tekstur panel depan (desain mati, atau desain pindah
+  // ke decal karena melebihi panel).
+  function blankFrontTexture() {
+    const w = world.current;
+    if (!w || !w.printMat) return;
+    const THREE = w.THREE;
+    const blank = document.createElement("canvas");
+    blank.width = 4;
+    blank.height = 4;
+    const tex = new THREE.CanvasTexture(blank);
+    tex.flipY = false;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const orig = w.origMap;
+    if (orig) {
+      tex.repeat.copy(orig.repeat);
+      tex.offset.copy(orig.offset);
+      tex.center.copy(orig.center);
+      tex.rotation = orig.rotation;
+      tex.wrapS = orig.wrapS;
+      tex.wrapT = orig.wrapT;
+      tex.matrixAutoUpdate = orig.matrixAutoUpdate;
+      if (!tex.matrixAutoUpdate) tex.matrix.copy(orig.matrix);
+    }
+    if (w.tex) w.tex.dispose();
+    w.tex = tex;
+    w.printMat.map = tex;
+    w.printMat.color.set("#ffffff");
+    w.printMat.needsUpdate = true;
+  }
+
+  // Decal desain depan untuk ukuran melebihi panel tekstur (A3):
+  // bidang melengkung mengikuti permukaan badan, ukuran asli,
+  // teknik yang sama dengan decal belakang (applyBack).
+  function applyFrontDecal() {
+    const w = world.current;
+    if (!w || !w.scene) return;
+    removeFrontDecal();
+    const src = artworkRef.current;
+    if (!src) {
+      w.designFrontFit = null;
+      applyGuides();
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      if (!world.current || world.current !== w || !w.scene) return;
+      const THREE = w.THREE;
+      const cv = document.createElement("canvas");
+      cv.width = 1024;
+      cv.height = 1024;
+      const cx = cv.getContext("2d");
+      const box = artworkBox(img);
+      const s = Math.min(1024 / box.w, 1024 / box.h);
+      const dw = box.w * s;
+      const dh = box.h * s;
+      const tf = frontTfRef.current || {};
+      const tScale = tf.scale || 1;
+      cx.save();
+      cx.translate(512 + (tf.dx || 0) * 1024, 512 + (tf.dy || 0) * 1024);
+      cx.rotate(((tf.rot || 0) * Math.PI) / 180);
+      cx.drawImage(img, box.x, box.y, box.w, box.h, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
+      cx.restore();
+      const tex = new THREE.CanvasTexture(cv);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const area = frontAreaWorld(
+        frontDimsRef.current.w || 21,
+        frontDimsRef.current.h || 28,
+      );
+      w.designFrontFit = { w: (dw / 1024) * area.w, h: (dh / 1024) * area.h };
+      const geo = new THREE.PlaneGeometry(area.w, area.h, 44, 22);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const lx = pos.getX(i);
+        const ly = pos.getY(i);
+        pos.setZ(i, frontBodyZ(area.cx + lx, area.cy + ly) + 0.004);
+      }
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        transparent: true,
+        alphaTest: 0.04,
+        roughness: 0.9,
+        metalness: 0,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(area.cx, area.cy, 0);
+      mesh.renderOrder = 5;
+      w.scene.add(mesh);
+      w.frontDecal = mesh;
+      applyGuides();
+      if (!readyOnce.current) {
+        readyOnce.current = true;
+        setStatus("ready");
+      }
     };
     img.onerror = () => {};
     img.src = src;
@@ -659,28 +889,8 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     if (!artworkRef.current) {
       // Front print is off: clear the print texture back to transparent so
       // the 3D shirt matches the unchecked "print this side" state.
-      const blank = document.createElement("canvas");
-      blank.width = 4;
-      blank.height = 4;
-      const tex = new THREE.CanvasTexture(blank);
-      tex.flipY = false;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const orig = w.origMap;
-      if (orig) {
-        tex.repeat.copy(orig.repeat);
-        tex.offset.copy(orig.offset);
-        tex.center.copy(orig.center);
-        tex.rotation = orig.rotation;
-        tex.wrapS = orig.wrapS;
-        tex.wrapT = orig.wrapT;
-        tex.matrixAutoUpdate = orig.matrixAutoUpdate;
-        if (!tex.matrixAutoUpdate) tex.matrix.copy(orig.matrix);
-      }
-      if (w.tex) w.tex.dispose();
-      w.tex = tex;
-      w.printMat.map = tex;
-      w.printMat.color.set("#ffffff");
-      w.printMat.needsUpdate = true;
+      removeFrontDecal();
+      blankFrontTexture();
       w.designFrontFit = null;
       applyGuides();
       if (!readyOnce.current) {
@@ -689,6 +899,14 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       }
       return;
     }
+    if (
+      frontExceedsPanel(frontDimsRef.current.w || 21, frontDimsRef.current.h || 28)
+    ) {
+      blankFrontTexture();
+      applyFrontDecal();
+      return;
+    }
+    removeFrontDecal();
     const img = new Image();
     img.onload = () => {
       if (!world.current) return;

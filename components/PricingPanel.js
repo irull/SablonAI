@@ -285,7 +285,7 @@ export default function PricingPanel({
           </option>
         ))}
       </select>
-      {activePrint && activePrint.wCm !== activePrint.hCm && (
+      {activePrint && activePrint.wCm !== activePrint.hCm && activePrint.id !== "A3" && (
         <div className="seg-row" role="group" aria-label={tr("orientFront")}>
           <button
             type="button"
