@@ -57,6 +57,19 @@ const studioTools = [
   { id: "image", labelKey: "toolImage", icon: Images },
 ];
 const SAVE_KEY = "sablonai.savedDesign.v1";
+// Desain bawaan saat Studio pertama dibuka (permintaan user
+// 3 Nov 2026): placeholder "YOUR DESIGN HERE" dari file yang user
+// taruh di public/assets — menggantikan contoh Gowes sebagai
+// tampilan awal; contoh brief tetap bisa dipilih dari tab AI.
+const DEFAULT_DESIGN = {
+  id: "your-design-here",
+  title: "Your Design Here",
+  category: "DEFAULT",
+  brief: "",
+  image: "/assets/your-design-here.png",
+  prompt: "",
+  demo: true,
+};
 const IDENTITY_TF = { dx: 0, dy: 0, scale: 1, rot: 0 };
 const clampTf = (v, min, max) => Math.min(max, Math.max(min, v));
 const normRot = (deg) => {
@@ -307,7 +320,7 @@ export default function SablonApp() {
     backPrint && backOrientationEff === "landscape" && backPrint.wCm !== backPrint.hCm,
   );
   const [designsBySide, setDesignsBySide] = useState({
-    front: { ...sampleBriefs[0], demo: true },
+    front: { ...DEFAULT_DESIGN },
     back: null,
   });
   // Studio DIY 1 layar (Nov 2026): tool aktif di rail kiri studio dan
@@ -890,7 +903,7 @@ export default function SablonApp() {
                       </>
                     )}
                     {(side2d === "front" ? frontPrintId : backPrintId) ? (
-                      <>
+                      <div className="stage-left-col">
                         <DesignOverlay
                           tr={tr}
                           side={side2d}
@@ -904,32 +917,47 @@ export default function SablonApp() {
                             onReset={() => setTransform({ ...IDENTITY_TF })}
                           />
                         ) : null}
-                      </>
+                      </div>
                     ) : null}
+                    {/* Tata letak panggung revisi user 3 Nov 2026:
+                        tombol sisi + Atur desain pindah ke atas-tengah
+                        panggung, toggle Foto/3D ke kanan atas. */}
+                    <div className="stage-top-center">
+                      <div className="view-toggle side-toggle" role="group" aria-label={tr("activeSideLabel")}>
+                        <button type="button" className={"seg" + (side2d === "front" ? " on" : "")} onClick={() => setSide2d("front")}>
+                          {tr("viewFront")}
+                        </button>
+                        <button type="button" className={"seg" + (side2d === "back" ? " on" : "")} onClick={() => setSide2d("back")}>
+                          {tr("viewBack")}
+                        </button>
+                      </div>
+                      {view === "3d" &&
+                        (side2d === "front" ? frontPrintId : backPrintId) && (
+                          <div className="view-toggle" role="group" aria-label={tr("editDesign")}>
+                            <button
+                              type="button"
+                              className={"seg" + (edit3d ? " on" : "")}
+                              aria-pressed={edit3d}
+                              onClick={() => setEdit3d(!edit3d)}
+                            >
+                              {tr("editDesign")}
+                            </button>
+                          </div>
+                        )}
+                    </div>
+                    <div className="stage-top-right">
+                      <div className="view-toggle" role="group" aria-label={tr("viewModeLabel")}>
+                        <button type="button" className={"seg" + (view === "2d" ? " on" : "")} aria-pressed={view === "2d"} onClick={() => { setView("2d"); setEdit3d(false); }}>
+                          {tr("viewPhoto")}
+                        </button>
+                        <button type="button" className={"seg" + (view === "3d" ? " on" : "")} aria-pressed={view === "3d"} onClick={() => setView("3d")}>
+                          3D
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </section>
                 <div className="stage-bottom">
-                  <div className="view-toggle side-toggle" role="group" aria-label={tr("activeSideLabel")}>
-                    <button type="button" className={"seg" + (side2d === "front" ? " on" : "")} onClick={() => setSide2d("front")}>
-                      {tr("viewFront")}
-                    </button>
-                    <button type="button" className={"seg" + (side2d === "back" ? " on" : "")} onClick={() => setSide2d("back")}>
-                      {tr("viewBack")}
-                    </button>
-                  </div>
-                  {view === "3d" &&
-                    (side2d === "front" ? frontPrintId : backPrintId) && (
-                      <div className="view-toggle" role="group" aria-label={tr("editDesign")}>
-                        <button
-                          type="button"
-                          className={"seg" + (edit3d ? " on" : "")}
-                          aria-pressed={edit3d}
-                          onClick={() => setEdit3d(!edit3d)}
-                        >
-                          {tr("editDesign")}
-                        </button>
-                      </div>
-                    )}
                   <span className="stage-hint">
                     {view === "3d"
                       ? edit3d
@@ -937,14 +965,6 @@ export default function SablonApp() {
                         : tr("hint3dStage")
                       : tr("stageHintMockup")}
                   </span>
-                  <div className="view-toggle" role="group" aria-label={tr("viewModeLabel")}>
-                    <button type="button" className={"seg" + (view === "2d" ? " on" : "")} aria-pressed={view === "2d"} onClick={() => { setView("2d"); setEdit3d(false); }}>
-                      {tr("viewPhoto")}
-                    </button>
-                    <button type="button" className={"seg" + (view === "3d" ? " on" : "")} aria-pressed={view === "3d"} onClick={() => setView("3d")}>
-                      3D
-                    </button>
-                  </div>
                 </div>
                 <PricingPanel
                   t={tr}

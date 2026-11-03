@@ -233,6 +233,8 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           frontSurf: null,
           frontBodySurf: null,
           frontDecal: null,
+          frontGen: 0,
+          backGen: 0,
           guides: null,
           hitFront: null,
           hitBack: null,
@@ -713,6 +715,9 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   function applyBack() {
     const w = world.current;
     if (!w || !w.scene) return;
+    // Penjaga generasi: onload gambar dari panggilan lama dibatalkan
+    // (cegah decal basi menumpuk hasil render terbaru).
+    const gen = ++w.backGen;
     if (w.backDecal) {
       w.scene.remove(w.backDecal);
       w.backDecal.geometry.dispose();
@@ -730,6 +735,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     img.crossOrigin = "anonymous";
     img.onload = () => {
       if (!world.current || world.current !== w || !w.scene) return;
+      if (gen !== w.backGen) return;
       const THREE = w.THREE;
       const cv = document.createElement("canvas");
       cv.width = 1024;
@@ -816,6 +822,9 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   function applyFrontDecal() {
     const w = world.current;
     if (!w || !w.scene) return;
+    // Generasi render depan milik panggilan applyArtwork terakhir —
+    // onload yang selesai belakangan dari mode/ukuran lama dibatalkan.
+    const gen = w.frontGen;
     removeFrontDecal();
     const src = artworkRef.current;
     if (!src) {
@@ -827,6 +836,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     img.crossOrigin = "anonymous";
     img.onload = () => {
       if (!world.current || world.current !== w || !w.scene) return;
+      if (gen !== w.frontGen) return;
       const THREE = w.THREE;
       const cv = document.createElement("canvas");
       cv.width = 1024;
@@ -886,6 +896,12 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     const w = world.current;
     if (!w || !w.printMat) return;
     const THREE = w.THREE;
+    // Setiap render depan menaikkan generasi: onload gambar async
+    // dari panggilan sebelumnya (mis. tekstur A4 yang baru selesai
+    // setelah user pindah ke A3) TIDAK boleh menimpa hasil terbaru —
+    // itulah bug "desain depan menumpuk" (tekstur panel + decal A3
+    // tampil bersamaan) yang dilaporkan user 3 Nov 2026.
+    const gen = ++w.frontGen;
     if (!artworkRef.current) {
       // Front print is off: clear the print texture back to transparent so
       // the 3D shirt matches the unchecked "print this side" state.
@@ -910,6 +926,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     const img = new Image();
     img.onload = () => {
       if (!world.current) return;
+      if (gen !== w.frontGen) return;
       const canvas = document.createElement("canvas");
       canvas.width = TEX_SIZE;
       canvas.height = TEX_SIZE;
