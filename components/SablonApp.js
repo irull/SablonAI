@@ -378,6 +378,8 @@ export default function SablonApp() {
     setTransformsBySide((prev) => ({ ...prev, [side2d]: { ...IDENTITY_TF } }));
   };
   const mockup = useRef(null);
+  // Penangkap gambar mockup 3D (diisi ShirtViewer3D) untuk Unduh mockup.
+  const viewerExport = useRef(null);
   const choose = (s) => {
     updateDesign({ ...s, demo: true });
   };
@@ -441,13 +443,20 @@ export default function SablonApp() {
       flashStudio(tr("msgNoSaved"));
     }
   }
-  function downloadMockup() {
+  async function downloadMockup() {
+    // Unduh mockup = gambar mockup 3D beserta desainnya dari sisi
+    // aktif (FRONT/BACK), ditangkap ShirtViewer3D lewat exporterRef
+    // (permintaan user 3 Nov 2026; sebelumnya di tampilan 3D yang
+    // terunduh hanya file desainnya saja). Cadangan bila penampil
+    // belum siap: unduh desain sisi aktif seperti sebelumnya.
     let url = null;
-    let name = "sablonai-mockup.jpg";
-    if (view === "2d") {
-      url = mockup.current?.export();
-      name = "sablonai-mockup-" + side2d + ".jpg";
-    } else {
+    let name = "sablonai-mockup-" + side2d + ".png";
+    if (viewerExport.current?.capture) {
+      try {
+        url = await viewerExport.current.capture(side2d);
+      } catch {}
+    }
+    if (!url) {
       url = sideArtwork(side2d);
       name = "sablonai-desain.png";
     }
@@ -759,7 +768,7 @@ export default function SablonApp() {
                 choose(s);
                 setTab("studio");
                 setTool("upload");
-                setView("canvas");
+                setView("3d");
               }}
               onCollection={goCollection}
               onAddCart={addToCart}
@@ -851,6 +860,7 @@ export default function SablonApp() {
                         frontWidthCm={frontDims.wCm}
                         frontHeightCm={frontDims.hCm}
                         activeSide={side2d}
+                        exporterRef={viewerExport}
                         color={color.hex}
                         t={tr}
                         showArea={showArea}
@@ -947,16 +957,10 @@ export default function SablonApp() {
                           </div>
                         )}
                     </div>
-                    <div className="stage-top-right">
-                      <div className="view-toggle" role="group" aria-label={tr("viewModeLabel")}>
-                        <button type="button" className={"seg" + (view === "2d" ? " on" : "")} aria-pressed={view === "2d"} onClick={() => { setView("2d"); setEdit3d(false); }}>
-                          {tr("viewPhoto")}
-                        </button>
-                        <button type="button" className={"seg" + (view === "3d" ? " on" : "")} aria-pressed={view === "3d"} onClick={() => setView("3d")}>
-                          3D
-                        </button>
-                      </div>
-                    </div>
+                    {/* Toggle Foto/3D DIHAPUS (permintaan user
+                        3 Nov 2026): Studio hanya memakai mockup 3D.
+                        MockupCanvas tetap ter-mount tersembunyi di
+                        .mockup-keeper untuk ekspor pesanan. */}
                   </div>
                 </section>
                 <div className="stage-bottom">

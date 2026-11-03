@@ -135,14 +135,22 @@ const BACK_GRID = (() => {
     return out;
   });
 })();
-const BACK_LIFT = 0.004;
+// Jeda angkat decal dari permukaan kain: cukup untuk menghindari
+// z-fighting (dibantu polygonOffset di material decal), sekecil
+// mungkin supaya desain terasa menyatu dengan kain — jeda 4 mm lama
+// membuat desain belakang terlihat melayang/ada gap (laporan user
+// 3 Nov 2026). Grid decal juga diperhalus (96x96) supaya bidang
+// decal mengikuti lipatan punggung tanpa ruas datar yang menembus
+// atau melayang dari permukaan di antara titik-titik grid kasar.
+const BACK_LIFT = 0.0025;
+const FRONT_DECAL_LIFT = 0.0025;
 function surfaceZ2(x, y) {
   return bilinear(BACK_XS, BACK_YS, BACK_GRID, x, y);
 }
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
 
-export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, frontTransform, backTransform, color, t, showArea = false, editSide = null, onDragDesign = null, activeSide = "front" }) {
+export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, frontTransform, backTransform, color, t, showArea = false, editSide = null, onDragDesign = null, activeSide = "front", exporterRef = null }) {
   const tr = t || ((key, vars) => translate("id", key, vars));
   const mountRef = useRef(null);
   const world = useRef(null);
@@ -211,6 +219,14 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         const key = new THREE.DirectionalLight(0xffffff, 1.0);
         key.position.set(1.2, 2.2, 2.4);
         scene.add(key);
+        // Lampu kunci cermin untuk sisi belakang (laporan user
+        // 3 Nov 2026: pencahayaan belakang jauh lebih gelap dari
+        // depan karena lampu kunci lama hanya dari depan). Posisi +
+        // intensitas dicerminkan lewat sumbu z/x supaya tampang
+        // depan dan belakang menerima cahaya yang setara.
+        const keyBack = new THREE.DirectionalLight(0xffffff, 1.0);
+        keyBack.position.set(-1.2, 2.2, -2.4);
+        scene.add(keyBack);
         scene.add(new THREE.HemisphereLight(0xffffff, 0x8a93a8, 0.35));
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
@@ -438,6 +454,51 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         renderer.domElement.addEventListener("pointerdown", () => {
           w.camAnim = null;
         });
+        // Unduh mockup (permintaan user 3 Nov 2026): tangkap gambar
+        // mockup 3D BESERTA desainnya dari sisi yang diminta
+        // (FRONT/BACK mengikuti pilihan sisi aktif di SablonApp),
+        // bukan file desainnya saja seperti sebelumnya. Kamera
+        // dipasang lurus menghadap sisi itu pada jarak home, garis
+        // masking disembunyikan sesaat, hasil dirender sekali lalu
+        // dibaca sinkron (tanpa preserveDrawingBuffer) dan
+        // dikomposit di atas warna latar panggung; posisi kamera
+        // dikembalikan seperti semula sesudahnya.
+        w.captureSide = (side) => {
+          try {
+            if (w.guides) w.guides.visible = false;
+            const prevPos = camera.position.clone();
+            const dist = w.home
+              ? w.home.pos.distanceTo(w.home.target)
+              : camera.position.distanceTo(controls.target);
+            const dir = new THREE.Vector3(
+              0,
+              0.05,
+              side === "back" ? -1 : 1,
+            ).normalize();
+            camera.position
+              .copy(controls.target)
+              .addScaledVector(dir, dist);
+            camera.lookAt(controls.target);
+            renderer.render(scene, camera);
+            const src = renderer.domElement;
+            const out = document.createElement("canvas");
+            out.width = src.width;
+            out.height = src.height;
+            const g = out.getContext("2d");
+            g.fillStyle = "#f7f6f0";
+            g.fillRect(0, 0, out.width, out.height);
+            g.drawImage(src, 0, 0);
+            const url = out.toDataURL("image/png");
+            camera.position.copy(prevPos);
+            camera.lookAt(controls.target);
+            if (w.guides) w.guides.visible = true;
+            renderer.render(scene, camera);
+            return url;
+          } catch (e) {
+            if (w.guides) w.guides.visible = true;
+            return null;
+          }
+        };
         attachDrag();
         applyArtwork();
         applyBack();
@@ -731,6 +792,39 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         dy: Math.round(clamp(d.dy + (d.v - uv.y)) * 1000) / 1000,
       });
     });
+    // Mode Atur desain: scroll mouse mengubah ukuran desain dan
+    // Shift+scroll memutarnya (permintaan user 3 Nov 2026 — kontrol
+    // yang sama seperti frame edit 2D: geser, besar/kecil, putar).
+    // OrbitControls sedang nonaktif selama mode ini, jadi roda
+    // mouse bebas dipakai; patch dikirim lewat kanal yang sama
+    // dengan seretan (onDragDesign = patchTransform di SablonApp),
+    // batas skala/sudut disamakan dengan StageTools.
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        const side = editSideRef.current;
+        if (!side || !onDragDesignRef.current) return;
+        e.preventDefault();
+        const tf =
+          (side === "front" ? frontTfRef.current : backTfRef.current) || {};
+        if (e.shiftKey) {
+          let rot = (tf.rot || 0) + (e.deltaY > 0 ? 5 : -5);
+          rot = rot % 360;
+          if (rot > 180) rot -= 360;
+          if (rot < -180) rot += 360;
+          onDragDesignRef.current({ rot });
+        } else {
+          const scale = Math.min(
+            2.5,
+            Math.max(0.2, (tf.scale || 1) * (e.deltaY < 0 ? 1.07 : 0.935)),
+          );
+          onDragDesignRef.current({
+            scale: Math.round(scale * 1000) / 1000,
+          });
+        }
+      },
+      { passive: false },
+    );
     const end = () => {
       if (w.drag) {
         w.drag = null;
@@ -766,29 +860,36 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       if (!world.current || world.current !== w || !w.scene) return;
       if (gen !== w.backGen) return;
       const THREE = w.THREE;
+      const bw = (backDimsRef.current.w || 28) / 100;
+      const bh = (backDimsRef.current.h || 28) / 100;
+      const bCy = backCenterY(backDimsRef.current.w, backDimsRef.current.h);
+      // Kanvas tekstur HARUS seproporsi bidang decal (bw x bh):
+      // kanvas persegi 1024x1024 lama dipetakan ke bidang tak
+      // persegi sehingga desain tertarik/stretch mengikuti rasio
+      // bidang (paling parah di A3). Dengan kanvas seproporsi,
+      // fit gambar di kanvas = fit gambar di dunia nyata.
+      const cw = 1024;
+      const ch = Math.max(256, Math.min(2048, Math.round((cw * bh) / bw)));
       const cv = document.createElement("canvas");
-      cv.width = 1024;
-      cv.height = 1024;
+      cv.width = cw;
+      cv.height = ch;
       const cx = cv.getContext("2d");
       const box = artworkBox(img);
-      const s = Math.min(1024 / box.w, 1024 / box.h);
+      const s = Math.min(cw / box.w, ch / box.h);
       const dw = box.w * s;
       const dh = box.h * s;
       const tf = backTfRef.current || {};
       const tScale = tf.scale || 1;
       cx.save();
-      cx.translate(512 - (tf.dx || 0) * 1024, 512 + (tf.dy || 0) * 1024);
+      cx.translate(cw / 2 - (tf.dx || 0) * cw, ch / 2 + (tf.dy || 0) * ch);
       cx.rotate(((-(tf.rot || 0)) * Math.PI) / 180);
       cx.drawImage(img, box.x, box.y, box.w, box.h, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
       cx.restore();
       const tex = new THREE.CanvasTexture(cv);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
-      const bw = (backDimsRef.current.w || 28) / 100;
-      const bh = (backDimsRef.current.h || 28) / 100;
-      const bCy = backCenterY(backDimsRef.current.w, backDimsRef.current.h);
-      w.designBackFit = { w: (dw / 1024) * bw, h: (dh / 1024) * bh };
-      const geo = new THREE.PlaneGeometry(bw, bh, 44, 22);
+      w.designBackFit = { w: (dw / cw) * bw, h: (dh / ch) * bh };
+      const geo = new THREE.PlaneGeometry(bw, bh, 96, 96);
       const pos = geo.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const lx = pos.getX(i);
@@ -803,6 +904,9 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         roughness: 0.9,
         metalness: 0,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(0, bCy, 0);
@@ -867,35 +971,40 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       if (!world.current || world.current !== w || !w.scene) return;
       if (gen !== w.frontGen) return;
       const THREE = w.THREE;
+      const area = frontAreaWorld(
+        frontDimsRef.current.w || 21,
+        frontDimsRef.current.h || 28,
+      );
+      // Kanvas seproporsi bidang decal — alasan sama seperti
+      // applyBack: kanvas persegi di bidang tak persegi membuat
+      // desain tertarik/stretch.
+      const cw = 1024;
+      const ch = Math.max(256, Math.min(2048, Math.round((cw * area.h) / area.w)));
       const cv = document.createElement("canvas");
-      cv.width = 1024;
-      cv.height = 1024;
+      cv.width = cw;
+      cv.height = ch;
       const cx = cv.getContext("2d");
       const box = artworkBox(img);
-      const s = Math.min(1024 / box.w, 1024 / box.h);
+      const s = Math.min(cw / box.w, ch / box.h);
       const dw = box.w * s;
       const dh = box.h * s;
       const tf = frontTfRef.current || {};
       const tScale = tf.scale || 1;
       cx.save();
-      cx.translate(512 + (tf.dx || 0) * 1024, 512 + (tf.dy || 0) * 1024);
+      cx.translate(cw / 2 + (tf.dx || 0) * cw, ch / 2 + (tf.dy || 0) * ch);
       cx.rotate(((tf.rot || 0) * Math.PI) / 180);
       cx.drawImage(img, box.x, box.y, box.w, box.h, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
       cx.restore();
       const tex = new THREE.CanvasTexture(cv);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
-      const area = frontAreaWorld(
-        frontDimsRef.current.w || 21,
-        frontDimsRef.current.h || 28,
-      );
-      w.designFrontFit = { w: (dw / 1024) * area.w, h: (dh / 1024) * area.h };
-      const geo = new THREE.PlaneGeometry(area.w, area.h, 44, 22);
+      w.designFrontFit = { w: (dw / cw) * area.w, h: (dh / ch) * area.h };
+      const geo = new THREE.PlaneGeometry(area.w, area.h, 96, 96);
       const pos = geo.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const lx = pos.getX(i);
         const ly = pos.getY(i);
-        pos.setZ(i, frontBodyZ(area.cx + lx, area.cy + ly) + 0.004);
+        pos.setZ(i, frontBodyZ(area.cx + lx, area.cy + ly) + FRONT_DECAL_LIFT);
       }
       geo.computeVertexNormals();
       const mat = new THREE.MeshStandardMaterial({
@@ -905,6 +1014,9 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         roughness: 0.9,
         metalness: 0,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(area.cx, area.cy, 0);
@@ -1041,6 +1153,20 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     if (status === "ready") applyGuides();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArea, editSide, frontTransform, backTransform, status]);
+  // Daftarkan penangkap gambar mockup untuk tombol Unduh mockup
+  // di SablonApp (lihat w.captureSide di init).
+  useEffect(() => {
+    if (exporterRef) {
+      exporterRef.current = {
+        capture: (side) =>
+          world.current && world.current.captureSide
+            ? world.current.captureSide(side)
+            : null,
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exporterRef, status]);
+
   // Masuk mode Atur desain: kamera menghadap lurus ke sisi yang diedit
   // (depan/belakang) supaya seretan terasa wajar; keluar mode: kursor
   // kembali normal (kontrol orbit aktif lagi lewat loop render).
