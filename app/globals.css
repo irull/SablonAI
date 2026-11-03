@@ -617,7 +617,6 @@ h1 {
   display: block;
   width: 100%;
   height: auto;
-  mix-blend-mode: multiply;
 }
 .print-measure {
   display: flex;
@@ -2628,7 +2627,12 @@ body { background: var(--bg); }
 }
 .stage-panel { display: flex; flex-direction: column; }
 .stage-panel .mockup-stage { flex: 1; min-height: 0; }
+/* position:relative WAJIB di sini: .mockup-frame-root itu absolute inset-0
+   dan MockupFrame menghitung posisi frame relatif terhadap holder ini.
+   Tanpa ini, containing block frame lari ke .mockup-stage sehingga frame
+   bergeser naik selebar padding panggung (keluhan 'kotak desain belum sesuai'). */
 .mockup-live {
+  position: relative;
   flex: 1; min-height: 0; width: 100%;
   display: flex; align-items: center; justify-content: center;
 }
@@ -2790,6 +2794,16 @@ body { background: var(--bg); }
   background-color: #f4f1e9;
   background-image: radial-gradient(#d8d3bf 1.1px, transparent 1.15px);
   background-size: 22px 22px;
+}
+/* Kanvas mockup 2D = kartu foto yang DUDUK DI ATAS pola titik panggung.
+   Dulu kanvas memakai mix-blend-mode: multiply sehingga titik panggung
+   ikut tertempel di badan kaos (keluhan user 2 Nov 2026: titik harusnya
+   di BAWAH mockup). Sekarang kanvas opak dengan sudut membulat + bayangan
+   halus, titik hanya terlihat di sekeliling kartu. */
+.mockup-canvas {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(32, 43, 38, 0.13);
 }
 /* Pratinjau desain melayang di atas mockup */
 .design-overlay {

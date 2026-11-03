@@ -143,7 +143,7 @@ function MockupFrame({ geometry, artwork, transform, onChange }) {
       const holder = root ? root.parentElement : null;
       const canvasEl = holder ? holder.querySelector("canvas.mockup-canvas") : null;
       const geo = geometry;
-      if (!root || !holder || !canvasEl || !geo || !artSize || artSize.src !== artwork) {
+      if (!root || !holder || !canvasEl || !geo) {
         setBox(null);
         return;
       }
@@ -154,9 +154,21 @@ function MockupFrame({ geometry, artwork, transform, onChange }) {
         return;
       }
       const k = cr.width / 800;
-      const fit = Math.min(geo.pw / artSize.w, geo.ph / artSize.h);
-      const dw = artSize.w * fit * (tf.scale || 1);
-      const dh = artSize.h * fit * (tf.scale || 1);
+      // Utamakan rect gambar TERLIHAT yang dilaporkan MockupCanvas
+      // (margin transparan sudah dipotong di sana); fallback ke fit
+      // ukuran file penuh untuk geometri lama tanpa rect art.
+      let dw, dh;
+      if (geo.art) {
+        dw = geo.art.w * (tf.scale || 1);
+        dh = geo.art.h * (tf.scale || 1);
+      } else if (artSize && artSize.src === artwork) {
+        const fit = Math.min(geo.pw / artSize.w, geo.ph / artSize.h);
+        dw = artSize.w * fit * (tf.scale || 1);
+        dh = artSize.h * fit * (tf.scale || 1);
+      } else {
+        setBox(null);
+        return;
+      }
       const cx = geo.px + geo.pw / 2 + (tf.dx || 0) * geo.pw;
       const cy = geo.py + geo.ph / 2 + (tf.dy || 0) * geo.ph;
       setBox({
@@ -295,7 +307,11 @@ export default function SablonApp() {
   // tampilan panggung — "canvas" (kanvas fabric), "2d" (mockup foto),
   // "3d" (viewer 3D). Ketiganya berbagi state desain yang sama.
   const [tool, setTool] = useState("ai");
-  const [view, setView] = useState("2d");
+  // 3D jadi tampilan utama Studio (keputusan user 3 Nov 2026); mockup
+  // 2D tetap ada sebagai tab "Foto". Masking + geser desain kini bisa
+  // langsung di 3D lewat mode Atur desain (edit3d) untuk sisi aktif.
+  const [view, setView] = useState("3d");
+  const [edit3d, setEdit3d] = useState(false);
   const [side2d, setSide2d] = useState("front");
   const [showArea, setShowArea] = useState(true),
     [help, setHelp] = useState(false),
@@ -716,7 +732,7 @@ export default function SablonApp() {
                 choose(s);
                 setTab("studio");
                 setTool("ai");
-                setView("2d");
+                setView("3d");
               }}
               onCustomize={(s) => {
                 choose(s);
@@ -815,6 +831,14 @@ export default function SablonApp() {
                         frontHeightCm={frontDims.hCm}
                         color={color.hex}
                         t={tr}
+                        showArea={showArea}
+                        editSide={
+                          edit3d &&
+                          (side2d === "front" ? frontPrintId : backPrintId)
+                            ? side2d
+                            : null
+                        }
+                        onDragDesign={(p) => patchTransform(p)}
                       />
                     )}
                     <div className={view === "2d" ? "mockup-live" : "mockup-keeper"}>
@@ -886,10 +910,29 @@ export default function SablonApp() {
                       {tr("viewBack")}
                     </button>
                   </div>
-                  <span className="stage-hint">{tr("stageHintMockup")}</span>
+                  {view === "3d" &&
+                    (side2d === "front" ? frontPrintId : backPrintId) && (
+                      <div className="view-toggle" role="group" aria-label={tr("editDesign")}>
+                        <button
+                          type="button"
+                          className={"seg" + (edit3d ? " on" : "")}
+                          aria-pressed={edit3d}
+                          onClick={() => setEdit3d(!edit3d)}
+                        >
+                          {tr("editDesign")}
+                        </button>
+                      </div>
+                    )}
+                  <span className="stage-hint">
+                    {view === "3d"
+                      ? edit3d
+                        ? tr("editDesignHint")
+                        : tr("hint3dStage")
+                      : tr("stageHintMockup")}
+                  </span>
                   <div className="view-toggle" role="group" aria-label={tr("viewModeLabel")}>
-                    <button type="button" className={"seg" + (view === "2d" ? " on" : "")} aria-pressed={view === "2d"} onClick={() => setView("2d")}>
-                      2D
+                    <button type="button" className={"seg" + (view === "2d" ? " on" : "")} aria-pressed={view === "2d"} onClick={() => { setView("2d"); setEdit3d(false); }}>
+                      {tr("viewPhoto")}
                     </button>
                     <button type="button" className={"seg" + (view === "3d" ? " on" : "")} aria-pressed={view === "3d"} onClick={() => setView("3d")}>
                       3D

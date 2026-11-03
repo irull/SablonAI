@@ -59,7 +59,11 @@ function HeroShirt({ colorHex, alt }) {
         const cb = parseInt(hex.slice(4, 6), 16);
         for (let i = 0; i < pixels.data.length; i += 4) {
           if (maskData[i + 3] < 24) continue;
-          const light = pixels.data[i] / 245;
+          const light =
+            (0.2126 * pixels.data[i] +
+              0.7152 * pixels.data[i + 1] +
+              0.0722 * pixels.data[i + 2]) /
+            245;
           pixels.data[i] = cr * light;
           pixels.data[i + 1] = cg * light;
           pixels.data[i + 2] = cb * light;

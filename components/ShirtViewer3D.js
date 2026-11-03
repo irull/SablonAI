@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, RefreshCcw, RotateCw } from "lucide-react";
 import { translate } from "../lib/i18n";
+import { artworkBox } from "../lib/artwork";
 
 // Pemetaan tekstur panel depan, terukur dari UV model: sampledU =
 // 0.50007 + 3.5325 * xDunia dan sampledV = 5.2214 - 3.4411 * yDunia,
@@ -11,6 +12,29 @@ import { translate } from "../lib/i18n";
 // sehingga A4 tampil 21x28 cm sungguhan seperti mockup 2D.
 const FRONT_U_PER_M = 3.5325;
 const FRONT_V_PER_M = 3.4411;
+// Pusat area cetak depan di dunia: U 0,5 -> x dari pemetaan terukur,
+// V 0,5 -> y = (5,2214 - 0,5) / 3,4411 ≈ 1,37206.
+const FRONT_CX = (0.5 - 0.50007) / FRONT_U_PER_M;
+const FRONT_CY = (5.2214 - 0.5) / FRONT_V_PER_M;
+// Interpolasi bilinier generik untuk grid permukaan (dipakai permukaan
+// punggung terukur BACK_GRID dan permukaan dada yang disampel dari
+// mesh panel depan saat model dimuat).
+function bilinear(xs, ys, grid, x, y) {
+  const cx = Math.min(xs[xs.length - 1], Math.max(xs[0], x));
+  const cy = Math.min(ys[ys.length - 1], Math.max(ys[0], y));
+  let ix = 0;
+  while (ix < xs.length - 2 && cx > xs[ix + 1]) ix++;
+  let iy = 0;
+  while (iy < ys.length - 2 && cy > ys[iy + 1]) iy++;
+  const fx = (cx - xs[ix]) / (xs[ix + 1] - xs[ix]);
+  const fy = (cy - ys[iy]) / (ys[iy + 1] - ys[iy]);
+  const z00 = grid[iy][ix], z10 = grid[iy][ix + 1];
+  const z01 = grid[iy + 1][ix], z11 = grid[iy + 1][ix + 1];
+  return (
+    z00 * (1 - fx) * (1 - fy) + z10 * fx * (1 - fy) +
+    z01 * (1 - fx) * fy + z11 * fx * fy
+  );
+}
 function frontPrintRect(widthCm, heightCm) {
   const w = Math.min(0.999, Math.max(0.05, ((widthCm || 21) / 100) * FRONT_U_PER_M));
   const h = Math.min(0.999, Math.max(0.05, ((heightCm || 28) / 100) * FRONT_V_PER_M));
@@ -60,26 +84,12 @@ const BACK_GRID = (() => {
 })();
 const BACK_LIFT = 0.004;
 function surfaceZ2(x, y) {
-  const xs = BACK_XS, ys = BACK_YS;
-  const cx = Math.min(xs[xs.length - 1], Math.max(xs[0], x));
-  const cy = Math.min(ys[ys.length - 1], Math.max(ys[0], y));
-  let ix = 0;
-  while (ix < xs.length - 2 && cx > xs[ix + 1]) ix++;
-  let iy = 0;
-  while (iy < ys.length - 2 && cy > ys[iy + 1]) iy++;
-  const fx = (cx - xs[ix]) / (xs[ix + 1] - xs[ix]);
-  const fy = (cy - ys[iy]) / (ys[iy + 1] - ys[iy]);
-  const z00 = BACK_GRID[iy][ix], z10 = BACK_GRID[iy][ix + 1];
-  const z01 = BACK_GRID[iy + 1][ix], z11 = BACK_GRID[iy + 1][ix + 1];
-  return (
-    z00 * (1 - fx) * (1 - fy) + z10 * fx * (1 - fy) +
-    z01 * (1 - fx) * fy + z11 * fx * fy
-  );
+  return bilinear(BACK_XS, BACK_YS, BACK_GRID, x, y);
 }
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
 
-export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, frontTransform, backTransform, color, t }) {
+export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, frontTransform, backTransform, color, t, showArea = false, editSide = null, onDragDesign = null }) {
   const tr = t || ((key, vars) => translate("id", key, vars));
   const mountRef = useRef(null);
   const world = useRef(null);
@@ -94,6 +104,12 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   const frontDimsRef = useRef({ w: frontWidthCm, h: frontHeightCm });
   const frontTfRef = useRef(frontTransform || null);
   const backTfRef = useRef(backTransform || null);
+  const showAreaRef = useRef(showArea);
+  const editSideRef = useRef(editSide);
+  const onDragDesignRef = useRef(onDragDesign);
+  showAreaRef.current = showArea;
+  editSideRef.current = editSide;
+  onDragDesignRef.current = onDragDesign;
   artworkRef.current = artwork;
   colorRef.current = color;
   backRef.current = backArtwork;
@@ -125,8 +141,10 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 0.95;
+        // Neutral + exposure lebih rendah: warna kain 3D sedekat mungkin
+        // dengan mockup 2D (ACES lama membuat warna jauh lebih terang).
+        renderer.toneMapping = THREE.NeutralToneMapping;
+        renderer.toneMappingExposure = 1.0;
         mount.appendChild(renderer.domElement);
         const scene = new THREE.Scene();
         const pmrem = new THREE.PMREMGenerator(renderer);
@@ -134,11 +152,12 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           new RoomEnvironment(),
           0.04,
         ).texture;
+        scene.environmentIntensity = 0.6;
         const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 100);
-        const key = new THREE.DirectionalLight(0xffffff, 1.25);
+        const key = new THREE.DirectionalLight(0xffffff, 1.0);
         key.position.set(1.2, 2.2, 2.4);
         scene.add(key);
-        scene.add(new THREE.HemisphereLight(0xffffff, 0x8a93a8, 0.5));
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x8a93a8, 0.35));
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
@@ -158,6 +177,13 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           fabricMats: [],
           home: null,
           tex: null,
+          frontSurf: null,
+          guides: null,
+          hitFront: null,
+          hitBack: null,
+          designFrontFit: null,
+          designBackFit: null,
+          drag: null,
         };
         world.current = w;
         const gltf = await new GLTFLoader().loadAsync(MODEL_URL);
@@ -196,6 +222,54 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           w.printMat.map = ph;
           w.printMat.needsUpdate = true;
         }
+        // Sampel permukaan dada dari mesh panel depan (material yang
+        // sama dengan printMat): untuk tiap sel grid ambil z terbesar
+        // (permukaan terluar) — dasar garis masking + bidang seret 3D,
+        // teknik yang sama dengan grid punggung terukur BACK_GRID.
+        try {
+          gltf.scene.updateMatrixWorld(true);
+          let printMesh = null;
+          gltf.scene.traverse((obj) => {
+            if (printMesh || !obj.isMesh) return;
+            const mats = Array.isArray(obj.material)
+              ? obj.material
+              : [obj.material];
+            if (w.printMat && mats.includes(w.printMat)) printMesh = obj;
+          });
+          if (printMesh) {
+            const posAttr = printMesh.geometry.attributes.position;
+            const v = new THREE.Vector3();
+            const verts = [];
+            for (let i = 0; i < posAttr.count; i++) {
+              v.fromBufferAttribute(posAttr, i).applyMatrix4(printMesh.matrixWorld);
+              verts.push([v.x, v.y, v.z]);
+            }
+            const xs = [];
+            for (let x = -0.16; x <= 0.161; x += 0.02) xs.push(Math.round(x * 100) / 100);
+            const ys = [];
+            for (let y = 1.14; y <= 1.601; y += 0.02) ys.push(Math.round(y * 100) / 100);
+            const grid = ys.map((gy) =>
+              xs.map((gx) => {
+                let best = null;
+                let bestD = Infinity;
+                let cell = null;
+                for (const [vx, vy, vz] of verts) {
+                  const dx = Math.abs(vx - gx);
+                  const dy = Math.abs(vy - gy);
+                  if (dx <= 0.013 && dy <= 0.013) {
+                    if (cell === null || vz > cell) cell = vz;
+                  }
+                  const d = dx * dx + dy * dy;
+                  if (d < bestD) { bestD = d; best = vz; }
+                }
+                return cell !== null ? cell : best !== null ? best : 0.18;
+              }),
+            );
+            w.frontSurf = { xs, ys, grid };
+          }
+        } catch (e) {
+          w.frontSurf = null;
+        }
         const box = new THREE.Box3().setFromObject(gltf.scene);
         const sphere = box.getBoundingSphere(new THREE.Sphere());
         controls.target.copy(sphere.center);
@@ -223,13 +297,19 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
         w.ro = ro;
         const loop = () => {
           raf = requestAnimationFrame(loop);
-          controls.autoRotate = autoRef.current;
+          // Mode Atur desain: putaran model dikunci supaya seretan
+          // pointer murni untuk memindah desain, tidak bentrok orbit.
+          const editing = Boolean(editSideRef.current);
+          controls.enabled = !editing;
+          controls.autoRotate = autoRef.current && !editing;
           controls.update();
           renderer.render(scene, camera);
         };
         loop();
+        attachDrag();
         applyArtwork();
         applyBack();
+        applyGuides();
       } catch (e) {
         if (alive) setStatus("error");
       }
@@ -260,6 +340,249 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // z permukaan dada pada (x, y): dari grid sampel mesh panel depan;
+  // fallback bidang datar bila sampel gagal.
+  function frontZ(x, y) {
+    const w = world.current;
+    if (w && w.frontSurf)
+      return bilinear(w.frontSurf.xs, w.frontSurf.ys, w.frontSurf.grid, x, y);
+    return 0.185;
+  }
+
+  // Garis masking area cetak + outline desain di 3D (permintaan user
+  // 3 Nov 2026: masking pindah ke 3D). Area = garis putus-putus abu
+  // mengikuti permukaan; outline desain = garis oranye persis sebesar
+  // desain terlihat (fit artworkBox x skala transform), hanya tampil
+  // di mode Atur desain. Bidang seret tak terlihat dibangun seukuran
+  // area cetak untuk raycast pointer.
+  function applyGuides() {
+    const w = world.current;
+    if (!w || !w.scene) return;
+    const THREE = w.THREE;
+    if (w.guides) {
+      w.scene.remove(w.guides);
+      w.guides.traverse((o) => {
+        if (o.isLine) {
+          o.geometry.dispose();
+          o.material.dispose();
+        }
+      });
+      w.guides = null;
+    }
+    for (const key of ["hitFront", "hitBack"]) {
+      if (w[key]) {
+        w.scene.remove(w[key]);
+        w[key].geometry.dispose();
+        w[key].material.dispose();
+        w[key] = null;
+      }
+    }
+    const showF =
+      Boolean(artworkRef.current) &&
+      (showAreaRef.current || editSideRef.current === "front");
+    const showB =
+      Boolean(backRef.current) &&
+      (showAreaRef.current || editSideRef.current === "back");
+    const editF = editSideRef.current === "front" && Boolean(artworkRef.current);
+    const editB = editSideRef.current === "back" && Boolean(backRef.current);
+    if (!showF && !showB) return;
+    const group = new THREE.Group();
+    const mkLine = (pts, mat) => {
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
+      const l = new THREE.Line(g, mat);
+      l.computeLineDistances();
+      l.renderOrder = 6;
+      return l;
+    };
+    const areaMat = () =>
+      new THREE.LineDashedMaterial({
+        color: 0x75816d,
+        dashSize: 0.014,
+        gapSize: 0.009,
+      });
+    const desMat = () => new THREE.LineBasicMaterial({ color: 0xc2703e });
+    const hitMat = () =>
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        colorWrite: false,
+      });
+    // Titik keliling persegi (cx, cy, w, h) diputar rotDeg derajat
+    // (CCW pada bidang xy lokal), z dari fungsi permukaan zFn(x, y).
+    const rectPts = (cx, cy, wdt, hgt, rotDeg, zFn) => {
+      const a = ((rotDeg || 0) * Math.PI) / 180;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const corners = [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ];
+      const pts = [];
+      const SEG = 10;
+      for (let s = 0; s < 4; s++) {
+        const [x0, y0] = corners[s];
+        const [x1, y1] = corners[(s + 1) % 4];
+        for (let i = 0; i < SEG; i++) {
+          const fx = x0 + (x1 - x0) * (i / SEG);
+          const fy = y0 + (y1 - y0) * (i / SEG);
+          const lx = (fx * wdt) / 2;
+          const ly = (fy * hgt) / 2;
+          const rx = cx + lx * ca - ly * sa;
+          const ry = cy + lx * sa + ly * ca;
+          pts.push(new THREE.Vector3(rx, ry, zFn(rx, ry)));
+        }
+      }
+      pts.push(pts[0].clone());
+      return pts;
+    };
+    if (showF) {
+      const pw = (frontDimsRef.current.w || 21) / 100;
+      const ph = (frontDimsRef.current.h || 28) / 100;
+      const zF = (x, y) => frontZ(x, y) + 0.006;
+      group.add(mkLine(rectPts(FRONT_CX, FRONT_CY, pw, ph, 0, zF), areaMat()));
+      if (editF && w.designFrontFit) {
+        const tf = frontTfRef.current || {};
+        const sc = tf.scale || 1;
+        group.add(
+          mkLine(
+            rectPts(
+              FRONT_CX + (tf.dx || 0) * pw,
+              FRONT_CY - (tf.dy || 0) * ph,
+              w.designFrontFit.w * sc,
+              w.designFrontFit.h * sc,
+              -(tf.rot || 0),
+              zF,
+            ),
+            desMat(),
+          ),
+        );
+      }
+      if (editF) {
+        const geo = new THREE.PlaneGeometry(pw, ph, 20, 20);
+        const p = geo.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          const lx = p.getX(i);
+          const ly = p.getY(i);
+          p.setZ(i, frontZ(lx, FRONT_CY + ly) + 0.004);
+        }
+        geo.computeVertexNormals();
+        const hit = new THREE.Mesh(geo, hitMat());
+        hit.position.set(FRONT_CX, FRONT_CY, 0);
+        w.scene.add(hit);
+        w.hitFront = hit;
+      }
+    }
+    if (showB) {
+      const bw = (backDimsRef.current.w || 28) / 100;
+      const bh = (backDimsRef.current.h || 28) / 100;
+      const holder = new THREE.Group();
+      holder.rotation.y = Math.PI;
+      holder.position.y = BACK_Y;
+      const zB = (lx, ly) => BACK_LIFT - surfaceZ2(-lx, BACK_Y + ly) + 0.003;
+      holder.add(mkLine(rectPts(0, 0, bw, bh, 0, zB), areaMat()));
+      if (editB && w.designBackFit) {
+        const tf = backTfRef.current || {};
+        const sc = tf.scale || 1;
+        holder.add(
+          mkLine(
+            rectPts(
+              -(tf.dx || 0) * bw,
+              -(tf.dy || 0) * bh,
+              w.designBackFit.w * sc,
+              w.designBackFit.h * sc,
+              tf.rot || 0,
+              zB,
+            ),
+            desMat(),
+          ),
+        );
+      }
+      group.add(holder);
+      if (editB) {
+        const geo = new THREE.PlaneGeometry(bw, bh, 44, 22);
+        const p = geo.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          const lx = p.getX(i);
+          const ly = p.getY(i);
+          p.setZ(i, BACK_LIFT - surfaceZ2(-lx, BACK_Y + ly) + 0.002);
+        }
+        geo.computeVertexNormals();
+        const hit = new THREE.Mesh(geo, hitMat());
+        hit.rotation.y = Math.PI;
+        hit.position.y = BACK_Y;
+        w.scene.add(hit);
+        w.hitBack = hit;
+      }
+    }
+    w.scene.add(group);
+    w.guides = group;
+  }
+
+  // Seret desain di mode Atur desain: raycast pointer ke bidang area
+  // cetak sisi aktif; uv bidang -> dx/dy fraksi area cetak (semantik
+  // sama dengan frame 2D: +dx ke kanan pandangan sisi itu, +dy ke
+  // bawah). Hasilnya ditulis lewat onDragDesign (patchTransform).
+  function attachDrag() {
+    const w = world.current;
+    if (!w) return;
+    const THREE = w.THREE;
+    const el = w.renderer.domElement;
+    const ray = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const castAt = (e, mesh) => {
+      if (!mesh) return null;
+      const r = el.getBoundingClientRect();
+      ndc.set(
+        ((e.clientX - r.left) / r.width) * 2 - 1,
+        -(((e.clientY - r.top) / r.height) * 2 - 1),
+      );
+      ray.setFromCamera(ndc, w.camera);
+      const hits = ray.intersectObject(mesh, false);
+      return hits.length && hits[0].uv ? hits[0].uv : null;
+    };
+    el.addEventListener("pointerdown", (e) => {
+      const side = editSideRef.current;
+      if (!side || !onDragDesignRef.current) return;
+      const uv = castAt(e, side === "front" ? w.hitFront : w.hitBack);
+      if (!uv) return;
+      const tf =
+        (side === "front" ? frontTfRef.current : backTfRef.current) || {};
+      w.drag = { side, u: uv.x, v: uv.y, dx: tf.dx || 0, dy: tf.dy || 0 };
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch (err) {}
+      el.style.cursor = "grabbing";
+      e.preventDefault();
+    });
+    el.addEventListener("pointermove", (e) => {
+      const d = w.drag;
+      if (!d || !onDragDesignRef.current) return;
+      const uv = castAt(e, d.side === "front" ? w.hitFront : w.hitBack);
+      if (!uv) return;
+      const clamp = (v) => Math.min(0.75, Math.max(-0.75, v));
+      // Sisi belakang: tekstur decal digambar tercermin (applyBack
+      // memakai translate 512 - dx*1024), jadi arah x state berlawanan
+      // dengan gerakan pointer — dibalik di sini supaya desain selalu
+      // mengikuti arah seretan di layar.
+      const du = d.side === "back" ? d.u - uv.x : uv.x - d.u;
+      onDragDesignRef.current({
+        dx: Math.round(clamp(d.dx + du) * 1000) / 1000,
+        dy: Math.round(clamp(d.dy + (d.v - uv.y)) * 1000) / 1000,
+      });
+    });
+    const end = () => {
+      if (w.drag) {
+        w.drag = null;
+        el.style.cursor = editSideRef.current ? "grab" : "";
+      }
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+  }
+
   function applyBack() {
     const w = world.current;
     if (!w || !w.scene) return;
@@ -271,7 +594,11 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       w.backDecal = null;
     }
     const src = backRef.current;
-    if (!src) return;
+    if (!src) {
+      w.designBackFit = null;
+      applyGuides();
+      return;
+    }
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -281,21 +608,23 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       cv.width = 1024;
       cv.height = 1024;
       const cx = cv.getContext("2d");
-      const s = Math.min(1024 / img.width, 1024 / img.height);
-      const dw = img.width * s;
-      const dh = img.height * s;
+      const box = artworkBox(img);
+      const s = Math.min(1024 / box.w, 1024 / box.h);
+      const dw = box.w * s;
+      const dh = box.h * s;
       const tf = backTfRef.current || {};
       const tScale = tf.scale || 1;
       cx.save();
       cx.translate(512 - (tf.dx || 0) * 1024, 512 + (tf.dy || 0) * 1024);
       cx.rotate(((-(tf.rot || 0)) * Math.PI) / 180);
-      cx.drawImage(img, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
+      cx.drawImage(img, box.x, box.y, box.w, box.h, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
       cx.restore();
       const tex = new THREE.CanvasTexture(cv);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
       const bw = (backDimsRef.current.w || 28) / 100;
       const bh = (backDimsRef.current.h || 28) / 100;
+      w.designBackFit = { w: (dw / 1024) * bw, h: (dh / 1024) * bh };
       const geo = new THREE.PlaneGeometry(bw, bh, 44, 22);
       const pos = geo.attributes.position;
       for (let i = 0; i < pos.count; i++) {
@@ -317,6 +646,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       mesh.rotation.y = Math.PI;
       w.scene.add(mesh);
       w.backDecal = mesh;
+      applyGuides();
     };
     img.onerror = () => {};
     img.src = src;
@@ -351,6 +681,8 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       w.printMat.map = tex;
       w.printMat.color.set("#ffffff");
       w.printMat.needsUpdate = true;
+      w.designFrontFit = null;
+      applyGuides();
       if (!readyOnce.current) {
         readyOnce.current = true;
         setStatus("ready");
@@ -369,9 +701,14 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       const ry = rect.y * TEX_SIZE;
       const rw = rect.w * TEX_SIZE;
       const rh = rect.h * TEX_SIZE;
-      const scale = Math.min(rw / img.width, rh / img.height);
-      const dw = img.width * scale;
-      const dh = img.height * scale;
+      const box = artworkBox(img);
+      const scale = Math.min(rw / box.w, rh / box.h);
+      const dw = box.w * scale;
+      const dh = box.h * scale;
+      w.designFrontFit = {
+        w: (dw / TEX_SIZE) / FRONT_U_PER_M,
+        h: (dh / TEX_SIZE) / FRONT_V_PER_M,
+      };
       const tf = frontTfRef.current || {};
       const tScale = tf.scale || 1;
       cx.save();
@@ -380,7 +717,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       cx.clip();
       cx.translate(rx + rw / 2 + (tf.dx || 0) * rw, ry + rh / 2 + (tf.dy || 0) * rh);
       cx.rotate(((tf.rot || 0) * Math.PI) / 180);
-      cx.drawImage(img, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
+      cx.drawImage(img, box.x, box.y, box.w, box.h, (-dw * tScale) / 2, (-dh * tScale) / 2, dw * tScale, dh * tScale);
       cx.restore();
       const tex = new THREE.CanvasTexture(canvas);
       tex.flipY = false;
@@ -402,6 +739,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
       w.printMat.map = tex;
       w.printMat.color.set("#ffffff");
       w.printMat.needsUpdate = true;
+      applyGuides();
       if (!readyOnce.current) {
         readyOnce.current = true;
         setStatus("ready");
@@ -435,6 +773,32 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     if (status === "ready") applyBack();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backArtwork, backWidthCm, backHeightCm, backTransform, status]);
+  useEffect(() => {
+    if (status === "ready") applyGuides();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showArea, editSide, frontTransform, backTransform, status]);
+  // Masuk mode Atur desain: kamera menghadap lurus ke sisi yang diedit
+  // (depan/belakang) supaya seretan terasa wajar; keluar mode: kursor
+  // kembali normal (kontrol orbit aktif lagi lewat loop render).
+  useEffect(() => {
+    const w = world.current;
+    if (!w || status !== "ready") return;
+    const el = w.renderer.domElement;
+    if (!editSide) {
+      el.style.cursor = "";
+      return;
+    }
+    const dist = w.camera.position.distanceTo(w.controls.target);
+    const dir = new w.THREE.Vector3(
+      0,
+      0.05,
+      editSide === "front" ? 1 : -1,
+    ).normalize();
+    w.camera.position.copy(w.controls.target).addScaledVector(dir, dist);
+    w.controls.update();
+    el.style.cursor = "grab";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editSide, status]);
 
   function resetView() {
     const w = world.current;

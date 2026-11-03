@@ -17,6 +17,8 @@ function loadImage(src) {
     img.src = src;
   });
 }
+import { artworkBox } from "../lib/artwork";
+
 const makeCanvas = (w, h) =>
   Object.assign(document.createElement("canvas"), { width: w, height: h });
 
@@ -106,7 +108,11 @@ const MockupCanvas = forwardRef(function MockupCanvas(
         const rgb = tc.getImageData(0, 0, 1, 1).data;
         const recolored = ctx.createImageData(800, 740);
         for (let i = 0; i < pixels.data.length; i += 4) {
-          const light = pixels.data[i] / 245;
+          const light =
+            (0.2126 * pixels.data[i] +
+              0.7152 * pixels.data[i + 1] +
+              0.0722 * pixels.data[i + 2]) /
+            245;
           for (let c = 0; c < 3; c++)
             recolored.data[i + c] = Math.min(255, rgb[c] * light);
           recolored.data[i + 3] = mask.data[i + 3];
@@ -122,9 +128,27 @@ const MockupCanvas = forwardRef(function MockupCanvas(
         if (art) {
           const layer = makeCanvas(800, 740),
             lc = layer.getContext("2d");
-          const scale = Math.min(pw / art.width, ph / art.height);
-          const aw = art.width * scale,
-            ah = art.height * scale;
+          // Ukur dari gambar yang TERLIHAT (margin transparan dipotong):
+          // ukuran sablon pilihan pelanggan terisi penuh oleh gambar,
+          // dan rect ini dilaporkan ke frame edit sebagai satu-satunya
+          // sumber kebenaran (keluhan "kotak desain belum sesuai").
+          const box = artworkBox(art);
+          const scale = Math.min(pw / box.w, ph / box.h);
+          const aw = box.w * scale,
+            ah = box.h * scale;
+          geom.current = {
+            px,
+            py,
+            pw,
+            ph,
+            art: {
+              x: px + pw / 2 - aw / 2,
+              y: py + ph / 2 - ah / 2,
+              w: aw,
+              h: ah,
+            },
+          };
+          if (onGeometry) onGeometry(geom.current);
           const tf = transform || {};
           const tScale = tf.scale || 1,
             tRot = ((tf.rot || 0) * Math.PI) / 180;
@@ -137,7 +161,7 @@ const MockupCanvas = forwardRef(function MockupCanvas(
             py + ph / 2 + (tf.dy || 0) * ph,
           );
           lc.rotate(tRot);
-          lc.drawImage(art, (-aw * tScale) / 2, (-ah * tScale) / 2, aw * tScale, ah * tScale);
+          lc.drawImage(art, box.x, box.y, box.w, box.h, (-aw * tScale) / 2, (-ah * tScale) / 2, aw * tScale, ah * tScale);
           lc.restore();
           const original = lc.getImageData(0, 0, 800, 740);
           const displaced = lc.createImageData(800, 740);
