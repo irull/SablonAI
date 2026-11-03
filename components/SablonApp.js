@@ -46,6 +46,7 @@ import {
   orderStatuses,
 } from "../lib/orders";
 import { newCartItemId, readCart, writeCart } from "../lib/cart";
+import { loadDesignData, saveDesignData } from "../lib/savedDesign";
 import { translate } from "../lib/i18n";
 import { config, formatRupiah, sampleBriefs } from "../lib/config";
 
@@ -56,7 +57,8 @@ const studioTools = [
   { id: "elemen", labelKey: "toolElemen", icon: Shapes },
   { id: "image", labelKey: "toolImage", icon: Images },
 ];
-const SAVE_KEY = "sablonai.savedDesign.v1";
+// Simpanan desain Save/Open tinggal di IndexedDB lewat lib/savedDesign
+// (data URL hasil generate terlalu besar untuk kuota localStorage).
 // Desain bawaan saat Studio pertama dibuka (permintaan user
 // 3 Nov 2026): placeholder "YOUR DESIGN HERE" dari file yang user
 // taruh di public/assets — menggantikan contoh Gowes sebagai
@@ -389,7 +391,7 @@ export default function SablonApp() {
     clearTimeout(studioMsgTimer.current);
     studioMsgTimer.current = setTimeout(() => setStudioMsg(""), 3500);
   };
-  function saveDesign() {
+  async function saveDesign() {
     try {
       const data = {
         v: 1,
@@ -406,23 +408,22 @@ export default function SablonApp() {
         designsBySide,
         transformsBySide,
       };
-      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      await saveDesignData(data);
       flashStudio(tr("msgDesignSaved"));
     } catch {
       flashStudio(tr("errSaveFailed"));
     }
   }
-  function openSaved() {
-    let raw = null;
+  async function openSaved() {
+    let d = null;
     try {
-      raw = localStorage.getItem(SAVE_KEY);
+      d = await loadDesignData();
     } catch {}
-    if (!raw) {
+    if (!d) {
       flashStudio(tr("msgNoSaved"));
       return;
     }
     try {
-      const d = JSON.parse(raw);
       const c = config.colors.find((x) => x.name === d.colorName);
       if (c) setColor(c);
       if (d.productId) setProductId(d.productId);
