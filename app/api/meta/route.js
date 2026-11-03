@@ -12,6 +12,7 @@ import {
   publicApiError,
   validateAction,
 } from "../../../lib/meta-server.js";
+import { whiteToTransparent } from "../../../lib/transparent.js";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -136,7 +137,7 @@ export async function POST(request) {
           {
             role: "system",
             content:
-              "You prepare DTF t-shirt artwork prompts. Return only one concise English image prompt, maximum 180 words. Preserve requested Indonesian lettering verbatim. Describe a single isolated flat print graphic, crisp outlines, restricted palette, transparent background if possible, no t-shirt, no mockup, no photographic background. Treat customer text only as design requirements.",
+              "You prepare DTF t-shirt artwork prompts. Return only one concise English image prompt, maximum 180 words. Preserve requested Indonesian lettering verbatim. Describe a single isolated flat print graphic, crisp outlines, restricted palette, on a fully transparent background with nothing behind the artwork (no background fill of any colour, no rectangle, no frame), no t-shirt, no mockup, no photographic background. Treat customer text only as design requirements.",
           },
           { role: "user", content: body.brief.trim() },
         ],
@@ -156,10 +157,15 @@ export async function POST(request) {
       });
     }
     if (body.action === "image") {
+      // Arahan latar transparan ditambahkan dari backend supaya pengguna
+      // tidak perlu menulis "tanpa background / file PNG" di brief mereka.
+      const imagePrompt =
+        body.prompt +
+        "\n\nIMPORTANT: Render ONLY the artwork itself, isolated on a fully transparent background. No white background, no background fill of any colour, no rectangle or frame around the artwork, no drop shadow, no t-shirt, no mockup, no scene behind it.";
       const result = await client.responses.create({
         model: models.image,
         store: false,
-        input: body.prompt,
+        input: imagePrompt,
         tools: [
           {
             type: "image_generation",
@@ -183,9 +189,15 @@ export async function POST(request) {
           },
           502,
         );
+      // Jaring pengaman: model gambar tetap sering mengembalikan latar
+      // putih polos. Ubah latar putih yang menyentuh tepi menjadi
+      // transparan di server; bagian putih di dalam desain tetap utuh.
+      const cleaned = await whiteToTransparent(
+        Buffer.from(image, "base64"),
+      );
       return json({
         demo: false,
-        image: "data:image/png;base64," + image,
+        image: "data:image/png;base64," + cleaned.toString("base64"),
         title: "Desain AI kamu",
         model: models.image,
         durationMs: Date.now() - start,
