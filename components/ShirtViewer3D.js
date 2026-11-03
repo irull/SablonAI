@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, RefreshCcw, RotateCw } from "lucide-react";
 import { translate } from "../lib/i18n";
 import { artworkBox } from "../lib/artwork";
-import { frontTopY, frontCxOffset, backTopY } from "../lib/printPlacement";
+import { frontTopY, frontCxOffset, backTopY, renderCm } from "../lib/printPlacement";
 
 // Pemetaan tekstur panel depan, terukur dari UV model: sampledU =
 // 0.50007 + 3.5325 * xDunia dan sampledV = 5.2214 - 3.4411 * yDunia,
@@ -142,7 +142,7 @@ function surfaceZ2(x, y) {
 const TEX_SIZE = 2048;
 const MODEL_URL = "/models/white-tee.glb";
 
-export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, frontTransform, backTransform, color, t, showArea = false, editSide = null, onDragDesign = null }) {
+export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm = 0, backHeightCm = 0, frontWidthCm = 0, frontHeightCm = 0, frontTransform, backTransform, color, t, showArea = false, editSide = null, onDragDesign = null, activeSide = "front" }) {
   const tr = t || ((key, vars) => translate("id", key, vars));
   const mountRef = useRef(null);
   const world = useRef(null);
@@ -153,8 +153,9 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   const artworkRef = useRef(artwork);
   const colorRef = useRef(color);
   const backRef = useRef(backArtwork);
-  const backDimsRef = useRef({ w: backWidthCm, h: backHeightCm });
-  const frontDimsRef = useRef({ w: frontWidthCm, h: frontHeightCm });
+  const backDimsRef = useRef(renderCm(backWidthCm, backHeightCm));
+  const frontDimsRef = useRef(renderCm(frontWidthCm, frontHeightCm));
+  const prevActiveSide = useRef(activeSide);
   const frontTfRef = useRef(frontTransform || null);
   const backTfRef = useRef(backTransform || null);
   const showAreaRef = useRef(showArea);
@@ -168,8 +169,8 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
   backRef.current = backArtwork;
   frontTfRef.current = frontTransform || null;
   backTfRef.current = backTransform || null;
-  backDimsRef.current = { w: backWidthCm, h: backHeightCm };
-  frontDimsRef.current = { w: frontWidthCm, h: frontHeightCm };
+  backDimsRef.current = renderCm(backWidthCm, backHeightCm);
+  frontDimsRef.current = renderCm(frontWidthCm, frontHeightCm);
 
   useEffect(() => {
     let alive = true;
@@ -235,6 +236,7 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           frontDecal: null,
           frontGen: 0,
           backGen: 0,
+          camAnim: null,
           guides: null,
           hitFront: null,
           hitBack: null,
@@ -404,11 +406,38 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
           // pointer murni untuk memindah desain, tidak bentrok orbit.
           const editing = Boolean(editSideRef.current);
           controls.enabled = !editing;
-          controls.autoRotate = autoRef.current && !editing;
-          controls.update();
+          // Animasi putar kamera menuju sisi aktif (tombol DEPAN/
+          // BELAKANG): sudut azimuth digeser halus dari posisi
+          // sekarang, radius + kemiringan dipertahankan. Selama
+          // animasi, controls.update() DILEWATI — update() dengan
+          // damping menghitung ulang posisi dari keadaan internal
+          // kontrol dan melawan posisi yang dipasang animasi
+          // (kamera berhenti puluhan derajat sebelum sasaran).
+          // Seretan pengguna membatalkan animasi (listener
+          // pointerdown di bawah).
+          if (w.camAnim) {
+            const a = w.camAnim;
+            const k = Math.min(1, (performance.now() - a.start) / 550);
+            const e =
+              k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+            const off = new THREE.Vector3().setFromSphericalCoords(
+              a.radius,
+              a.phi,
+              a.from + a.delta * e,
+            );
+            camera.position.copy(controls.target).add(off);
+            camera.lookAt(controls.target);
+            if (k >= 1) w.camAnim = null;
+          } else {
+            controls.autoRotate = autoRef.current && !editing;
+            controls.update();
+          }
           renderer.render(scene, camera);
         };
         loop();
+        renderer.domElement.addEventListener("pointerdown", () => {
+          w.camAnim = null;
+        });
         attachDrag();
         applyArtwork();
         applyBack();
@@ -1034,6 +1063,39 @@ export default function ShirtViewer3D({ artwork, backArtwork = null, backWidthCm
     el.style.cursor = "grab";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editSide, status]);
+
+  // Klik DEPAN/BELAKANG di stage (di luar mode Atur desain): kamera
+  // ikut berputar menghadap sisi yang dipilih (permintaan user
+  // 2026-11-03). Orbit mouse tetap bebas — ini hanya animasi
+  // sekali jalan, dibatalkan oleh seretan pengguna sendiri.
+  useEffect(() => {
+    const prev = prevActiveSide.current;
+    prevActiveSide.current = activeSide;
+    if (prev === activeSide) return;
+    const w = world.current;
+    if (!w || status !== "ready" || editSide) return;
+    const off = w.camera.position.clone().sub(w.controls.target);
+    const sph = new w.THREE.Spherical().setFromVector3(off);
+    const goal = activeSide === "front" ? 0 : Math.PI;
+    let delta = (goal - sph.theta) % (Math.PI * 2);
+    if (delta > Math.PI) delta -= Math.PI * 2;
+    if (delta < -Math.PI) delta += Math.PI * 2;
+    if (Math.abs(delta) < 0.01) return;
+    // Putar-otomatis dimatikan supaya kamera BETUL-BETUL berhenti di
+    // sisi yang dipilih (kalau tidak, model langsung hanyut lagi
+    // belasan derajat). Pengguna bisa menyalakannya lagi dari tombol
+    // putar di bar penampil.
+    autoRef.current = false;
+    setAuto(false);
+    w.camAnim = {
+      from: sph.theta,
+      delta,
+      radius: sph.radius,
+      phi: sph.phi,
+      start: performance.now(),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSide, status]);
 
   function resetView() {
     const w = world.current;

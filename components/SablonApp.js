@@ -849,6 +849,7 @@ export default function SablonApp() {
                         backHeightCm={backDims ? backDims.hCm : 0}
                         frontWidthCm={frontDims.wCm}
                         frontHeightCm={frontDims.hCm}
+                        activeSide={side2d}
                         color={color.hex}
                         t={tr}
                         showArea={showArea}

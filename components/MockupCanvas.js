@@ -18,6 +18,7 @@ function loadImage(src) {
   });
 }
 import { artworkBox } from "../lib/artwork";
+import { renderCm } from "../lib/printPlacement";
 
 const makeCanvas = (w, h) =>
   Object.assign(document.createElement("canvas"), { width: w, height: h });
@@ -129,10 +130,12 @@ const MockupCanvas = forwardRef(function MockupCanvas(
         // dari 0,221, kata user terlalu atas); 10x10 depan di dada
         // kiri (tengah +68 unit, tepi atas 0,368), 10x10 belakang
         // 0,215.
-        const pw = printWidth * 6.7,
-          ph = printHeight * 6.7;
-        const ten =
-          printWidth === 10 && printHeight === 10;
+        // Skala tampilan disamakan dengan penampil 3D lewat
+        // renderCm (A3 ditampilkan 24x38 — lihat lib/printPlacement).
+        const rd = renderCm(printWidth, printHeight);
+        const pw = rd.w * 6.7,
+          ph = rd.h * 6.7;
+        const ten = rd.w === 10 && rd.h === 10;
         let px = rect.x + (rect.w - pw) / 2;
         let py;
         if (side === "back") {
