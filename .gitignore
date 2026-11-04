@@ -9,3 +9,12 @@ test-results/
 *.log
 
 *-ilustrasi.*
+
+# Internal working notes - kept on the owner's PC only, not for the public repo
+UNTUK-PEMILIK.md
+LAPORAN-PENGERJAAN.md
+BRIEF-CODEX.md
+PROMPT-CODEX.md
+STAGES.md
+AGENTS.md
+ux-check/
